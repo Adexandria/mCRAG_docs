@@ -16,7 +16,14 @@ PREFIX_ROUTING = {
     "outputs": "outputs.",
 }
 
-
+EXTRACT_ROUTING = {
+    "info":    ("info.",),
+    "metrics": ("data.metrics.",),
+    "params":  ("data.params.",),
+    "tags":    ("data.tags.",),
+    "inputs":  ("inputs.dataset_inputs.", "inputs.model_inputs."),
+    "outputs": ("outputs.model_outputs.",),
+}
 SECTION ={
     "summary":       "info",
     "performance":   "metrics",

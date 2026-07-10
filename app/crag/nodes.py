@@ -1,7 +1,9 @@
 from collections import defaultdict
+import json
+import re
 from app.crag.state import Grade, Status
 from app.crag.vector_stores import vector_store
-from app.config import SECTION_ROUTING, PREFIX_ROUTING
+from app.config import EXTRACT_ROUTING, SECTION_ROUTING, PREFIX_ROUTING
 from app.crag.llm import rewrite_query
 
 def retrieval(state):
@@ -24,6 +26,10 @@ def retrieval(state):
 
 
 def grade_structure(state) :
+    """
+    Grades the retrieved documents based on their relevance to the query and the experiment ID.
+    """
+
     experiment_id = state["experiment_id"]
     sections = list(SECTION_ROUTING)
 
@@ -32,7 +38,7 @@ def grade_structure(state) :
 
     for doc in state["documents"]:
         meta = doc.metadata
-        run_id = meta.get("run_uuid")
+        run_id = meta.get("run_id")
 
         if meta.get("experiment_id") != experiment_id:
             discarded.append({"grade": Grade.INCORRECT, "run_id": run_id,
@@ -122,6 +128,20 @@ def transform_query(state):
         "section_queries_used": routed,               
     }
 
+def aggregate_results(state):
+    """
+    Aggregates the results from multiple sections into a single list of documents.
+    """
+    grading_results = state["grading_results"]
+    runs_tuples = defaultdict(list)
+    for doc in sorted(grading_results, key=lambda d: d.metadata["chunk_index"]):
+        runs_tuples[doc.metadata["run_id"]].extend(parse_chunk(doc.page_content))
+
+    extracted_data = {run_id: extract_all(tuples) for run_id, tuples in runs_tuples.items()}
+    
+    return {"aggregates": extracted_data}
+
+
 def parse_chunk(doc: str) -> list[tuple]:
     import ast
     try:
@@ -132,26 +152,54 @@ def parse_chunk(doc: str) -> list[tuple]:
     except (ValueError, SyntaxError): 
         return [tuple(p.split(" = ", 1)) for p in doc.split(" | ") if " = " in p]
 
+def normalize_path(path: str) -> str:
+    return re.sub(r"\[(\d+)\]", r".\1", path)
+
+def extract_all(docs):
+    result = result = {group: {} for group in EXTRACT_ROUTING}
+    for path, value in docs:
+        path = normalize_path(path)
+        for group, prefixes in EXTRACT_ROUTING.items():
+            if path.startswith(prefixes):                    
+                matched = next(p for p in prefixes if path.startswith(p))
+                result[group][path.removeprefix(matched)] = value
+                break
+    return result
+
+
+
 if __name__ == "__main__":
    
     state = {
         "query": "What is the best metric for the latest runs?",
         "experiment_id": "0"
     }
-    # results = retrieval(state)
-    # grade_state = {
-    #     "query": state["query"],
-    #     "experiment_id": state["experiment_id"],
-    #     "documents": results["documents"]
-    # }
+    results = retrieval(state)
+    print(len(results["documents"]), "documents retrieved.")
+    grade_state = {
+        "query": state["query"],
+        "experiment_id": state["experiment_id"],
+        "documents": results["documents"]
+    }
 
-    # grading_results = grade(grade_state)
-    # print("Grading Results:")
+    grading_results = grade_structure(grade_state)
+    aggragate_state = {
+        "query": state["query"],
+        "experiment_id": state["experiment_id"],
+        "grading_results": grading_results["documents"]
+    }
 
-    transformed_results = transform_query(state)
-    print("Transformed Query Results:")
-    for doc in transformed_results["documents"]:
-       print(doc)
+    aggregated_results = aggregate_results(aggragate_state)
+    print("Aggregated Results:")
+    print(json.dumps(aggregated_results["aggregates"], indent=2))
+
+
+
+
+    # transformed_results = transform_query(state)
+    # print("Transformed Query Results:")
+    # for doc in transformed_results["documents"]:
+    #    print(doc)
 
 
     
