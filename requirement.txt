@@ -3,3 +3,4 @@ langchain-text-splitters
 chromadb 
 langchain-chroma
 sentence-transformers
+langgraph
