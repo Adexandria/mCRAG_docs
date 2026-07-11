@@ -8,6 +8,7 @@ from app.config import EXTRACT_ROUTING, SECTION_ROUTING, PREFIX_ROUTING
 from app.crag.llm import generate_query, grade_response, rewrite_query
 
 k = os.environ.get("RETRIEVAL_K", 13)
+MAX_RETRIES = 2
 
 def retrieval(state):
     """
@@ -117,7 +118,7 @@ def transform_query(state):
 
     routed = rewrite_query(query)          
 
-    return {"query": routed, "experiment_id": experiment_id}
+    return {"experiment_id": experiment_id, "section_queries": routed, "retry_count": state["retry_count"] + 1}
 
 
 def retrieve_transformed(state):
@@ -132,7 +133,7 @@ def retrieve_transformed(state):
     print("---Retrieve Transformed---")
     experiment_id = state["experiment_id"]
 
-    query = state["query"]
+    query = state["section_queries"]
 
     documents_by_section = {}
 
@@ -168,16 +169,22 @@ def decide_to_generate(state):
 
     grading_report = state["grading_report"]
 
+    retries = state["retry_count"]
+
     proceed = grading_report.get("proceed", False)
 
     if proceed:
         print("---DECISION: PROCEED TO GENERATE---")
         return "aggregate_results"
-    else:
-        print(" " \
+    
+    if retries >= MAX_RETRIES:
+        print (f"---DECISION: {retries} TRANSFORMS EXHAUSTED, PROCEEDING WITH PARTIAL DATA---")
+        return "aggregate_results"
+
+    print(" " \
          "---DECISION: ALL DOCUMENTS ARE NOT RELEVANT TO QUESTION, TRANSFORM QUERY---"
         )
-        return "transform_query"
+    return "transform_query"
 
 
 def aggregate_results(state):
