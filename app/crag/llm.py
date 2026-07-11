@@ -4,40 +4,20 @@ import transformers
 import torch
 
 from app.config import SECTION, SECTION, CORPUS_VOCAB_PATH
+from app.crag.prompt import REWRITE_PROMPT_TEMPLATE, GENERATE_PROMPT, JUDGE_PROMPT
 
 
 ## LLM Pipeline
 
+model_id = "meta-llama/Llama-3.2-3B-Instruct"
+
 pipeline = transformers.pipeline(
     "text-generation",
-    model="meta-llama/Meta-Llama-3.1-8B-Instruct",
+    model=model_id,
     model_kwargs={"dtype": torch.bfloat16},
     device_map="auto",
 )
 
-
-prompt_template = """
-You rewrite user questions into retrieval queries for an MLflow experiment database.
-
-The database is organized into sections. Each section contains specific fields:
-{section_queries}
-
-Your task: rewrite the question as a single search query using ONLY terminology from the relevant sections above.
-
-Rules:
-1. Identify which section(s) the question is about.
-2. Replace vague phrasing with the exact field terms from those sections (e.g. "how good is the model" → "metrics accuracy performance").
-3. Do not introduce concepts absent from the sections.
-4. Output ONLY the rewritten query — no explanation, no quotes, no preamble.
-5. Only generate terminologies that are present in the sections above. If a term is not in the sections, do not use it.
-
-Example:
-Question: "what settings gave the best accuracy?"
-Output:
-performance: metrics accuracy
-configuration: params hyperparameters
-
-"""
 
 def generate_section():
     """
@@ -67,7 +47,7 @@ def rewrite_query(query: str) -> dict[str, str]:
 
     section_vocab = "\n".join(f"{k}: {v}" for k, v in generate_section().items())
 
-    prompt = prompt_template.format(section_queries=section_vocab)
+    prompt = REWRITE_PROMPT_TEMPLATE.format(section_queries=section_vocab)
 
     messages = [
         {"role": "system", "content": prompt},
@@ -75,8 +55,7 @@ def rewrite_query(query: str) -> dict[str, str]:
     ]
     response = pipeline(
         messages,
-        max_new_tokens=100,     
-        do_sample=False,       
+        max_new_tokens=100,           
     )
     response_text = response[0]["generated_text"][-1]["content"]
 
@@ -93,6 +72,50 @@ def rewrite_query(query: str) -> dict[str, str]:
             routed[section] = keywords
 
     return routed
+
+## This takes so much time, find a better llm
+
+def generate_query(query: str, aggregates: str) -> str:
+    """
+    Generates a query based on the user input using the LLM pipeline.
+    """
+    prompt = GENERATE_PROMPT.format(aggregates=aggregates)
+
+    messages = [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": query},
+    ]
+    response = pipeline(
+        messages,
+        max_new_tokens=500,      
+    )
+    response_text = response[0]["generated_text"][-1]["content"]
+
+    return response_text
+
+def grade_response(query: str, answer: str, aggregates: str) -> dict:
+    """
+    Grades the generated answer based on the user query and the provided facts (aggregates).
+    Returns a dictionary containing the verdict and explanation.
+    """
+    prompt = JUDGE_PROMPT.format(aggregates=aggregates, answer=answer)
+
+    messages = [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": query},
+    ]
+    response = pipeline(
+        messages,
+        max_new_tokens=100,          
+    )
+    response_text = response[0]["generated_text"][-1]["content"]
+
+    try:
+        verdict = json.loads(response_text)
+    except json.JSONDecodeError:
+        verdict = {"verdict": "fail", "explanation": "Failed to parse JSON from LLM response."}
+
+    return verdict
 
 if __name__ == "__main__":
     test_query = "What are the hyperparameters and metrics for the latest runs?" ## change this to represent the examples of queries you want to test
