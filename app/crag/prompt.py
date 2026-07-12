@@ -1,5 +1,5 @@
 REWRITE_PROMPT_TEMPLATE = """
-You rewrite user questions into retrieval queries for an MLflow experiment database.
+You rewrite user question into retrieval query for an MLflow experiment database.
 
 The database is organized into sections. Each section contains specific fields:
 {section_queries}
