@@ -7,7 +7,7 @@ from app.crag.vector_stores import vector_store
 from app.config import EXTRACT_ROUTING, SECTION_ROUTING, PREFIX_ROUTING
 from app.crag.llm import generate_query, grade_response, rewrite_query
 
-k = os.environ.get("RETRIEVAL_K", 13)
+k = os.environ.get("RETRIEVAL_K", 4)
 MAX_RETRIES = 2
 
 def retrieval(state):
@@ -199,7 +199,7 @@ def aggregate_results(state):
     """
     print("---Aggregate Results---")
 
-    grading_results = state["grading_results"]
+    grading_results = state["documents"]
 
     runs_tuples = defaultdict(list)
 
@@ -253,6 +253,29 @@ def grade_answer(state):
 
     grading_result = grade_response(query, generation, facts)
     return {"grading_result": grading_result, "query": query, "aggregates": aggregates}
+
+def decide_to_transform_query(state):
+    """
+    Decides whether to transform the query based on the grading result.
+    
+    Args:
+        state (dict): The current graph state.
+    Returns:
+        str: "grade_answer" if the grading result indicates to proceed, otherwise "transform_query".
+    """
+    print("---Decide to Transform Query---")
+
+    grading_result = state["grading_result"]
+
+    proceed = grading_result.get("verdict", False)
+
+    if proceed == "pass":
+        print("---DECISION: PROCEED TO END---")
+        return "END"
+
+    print("---DECISION: GENERATED ANSWER IS NOT SUFFICIENT, REGENERATE QUERY---")
+    return "transform_query"
+
 
 
 def detect_groups(page_content: str) -> set[str]:
