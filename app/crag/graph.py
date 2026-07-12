@@ -1,4 +1,4 @@
-from app.crag.nodes import generate, retrieval, transform_query, aggregate_results,grade_structure,retrieve_transformed, decide_to_generate,grade_answer, decide_to_generate
+from app.crag.nodes import generate, retrieval, transform_query, aggregate_results,grade_structure,decide_to_transform_query,retrieve_transformed, decide_to_generate,grade_answer, decide_to_generate
 from app.crag.state import GraphState
 from langgraph.graph import END, StateGraph, START
 
@@ -28,5 +28,13 @@ workflow.add_edge("transform_query", "retrieve_transformed")
 workflow.add_edge("retrieve_transformed", "grade_structure")
 workflow.add_edge("aggregate_results", "generate")
 workflow.add_edge("generate", "grade_generation")
-workflow.add_edge("grade_generation", END)
+workflow.add_conditional_edges(
+    "grade_generation",
+    decide_to_transform_query,
+    {
+        "END": END,
+        "transform_query": "transform_query"
+    }
+)
 
+app = workflow.compile()
