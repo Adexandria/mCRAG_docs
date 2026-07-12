@@ -42,34 +42,36 @@ def generate_section():
 
 def rewrite_query(query: str) -> dict[str, str]:
     """
-    Rewrite a vague user query into a structured query using corpus vocabulary from the relevant sections.
+    Rewrite a vague user query into corpus-vocabulary section queries.
+    Falls back to the full section vocabulary if the LLM output is unparseable.
     """
-
-    section_vocab = "\n".join(f"{k}: {v}" for k, v in generate_section().items())
+    vocab = generate_section()          # {section: keywords} — info already excluded
+    section_vocab = "\n".join(f"{k}: {v}" for k, v in vocab.items())
 
     prompt = REWRITE_PROMPT_TEMPLATE.format(section_queries=section_vocab)
-
     messages = [
         {"role": "system", "content": prompt},
         {"role": "user", "content": query},
     ]
-    response = pipeline(
-        messages,
-        max_new_tokens=100,           
-    )
+    response = pipeline(messages, max_new_tokens=100, do_sample=False)
     response_text = response[0]["generated_text"][-1]["content"]
+
+    print(f"[rewrite_query] RAW OUTPUT:\n{response_text!r}\n")      # ① see the failure
 
     routed = {}
     for line in response_text.splitlines():
         if ":" not in line:
             continue
         section, _, keywords = line.partition(":")
-        print(f"Detected section: '{section.strip()}', keywords: '{keywords.strip()}'")
-        section = section.strip().lower()
-        if section in SECTION:
-            if "runs" in keywords.lower() and section != "info": # this is an issue with the LLM sometimes adding "runs" to the query, which is not a field in the sections
-                keywords = keywords.replace("runs", "")
+        section = section.strip().strip("*-#• ").lower()             # ② tolerate md/bullets
+        keywords = keywords.strip().strip("*` ")
+        print(f"Detected section: '{section}', keywords: '{keywords}'")
+        if section in SECTION and keywords:
             routed[section] = keywords
+
+    if not routed:                                                    # ③ fail-safe fallback
+        print("[rewrite_query] nothing parsed — falling back to full section vocabulary")
+        routed = dict(vocab)
 
     return routed
 
@@ -87,7 +89,8 @@ def generate_query(query: str, aggregates: str) -> str:
     ]
     response = pipeline(
         messages,
-        max_new_tokens=500,      
+        max_new_tokens=500,   
+        do_sample=False,   
     )
     response_text = response[0]["generated_text"][-1]["content"]
 
@@ -106,7 +109,8 @@ def grade_response(query: str, answer: str, aggregates: str) -> dict:
     ]
     response = pipeline(
         messages,
-        max_new_tokens=100,          
+        max_new_tokens=100,    
+        do_sample=False,      
     )
     response_text = response[0]["generated_text"][-1]["content"]
 
