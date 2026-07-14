@@ -222,12 +222,13 @@ def generate(state):
     print("---Generate---")
 
     query = state["query"]
+
     aggregates = state["aggregates"]
-    facts = "\n".join(
-    f"{k}: {json.dumps(v, separators=(',', ':'), default=str)}"
-    for k, v in aggregates.items()
-    )
+
+    facts = json.dumps(aggregates, indent=2)
+
     generated_query = generate_query(query, facts)
+
     return {"generation": generated_query, "query": query, "aggregates": aggregates}
 
 def grade_answer(state):
@@ -246,10 +247,8 @@ def grade_answer(state):
     aggregates = state["aggregates"]
 
     generation = state["generation"]
-    facts = "\n".join(
-    f"{k}: {json.dumps(v, separators=(',', ':'), default=str)}"
-    for k, v in aggregates.items()
-    )
+
+    facts = json.dumps(aggregates, indent=2)
 
     grading_result = grade_response(query, generation, facts)
     return {"grading_result": grading_result, "query": query, "aggregates": aggregates}
