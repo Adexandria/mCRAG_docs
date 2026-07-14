@@ -87,12 +87,12 @@ def get_experiment_by_name(experiment_name):
         raise Exception(f"Error occurred while fetching experiment: {e}")
 
 
-def get_all_runs_by_experiment_id(experiment_name):
+def get_all_runs_by_experiment_name(experiment_name):
     """
-    Get all runs by experiment ID.
+    Get all runs by experiment name.
 
     Args:
-        experiment_id (str): The ID of the experiment.
+        experiment_name (str): The name of the experiment.
 
     Returns:
         runs_data (list): A list of runs data.

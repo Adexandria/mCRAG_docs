@@ -1,11 +1,13 @@
 import json
+import os
 
 from langchain_text_splitters import RecursiveJsonSplitter
 from langchain_core.documents import Document
+from app.config import CORPUS_VOCAB_PATH
 from app.crag.vector_stores import vector_store
 from collections import defaultdict
 
-from app.retriever.extract_data import unwrap_run_data, flatten,get_all_runs_by_experiment_id, extract_keywords
+from app.retriever.extract_data import unwrap_run_data, flatten,get_all_runs_by_experiment_name, extract_keywords
 
 
 def split_chunks(runs_data):
@@ -13,6 +15,17 @@ def split_chunks(runs_data):
     Split the run data into chunks and extract keywords for each section.
     """
     corpus_vocab = defaultdict(set)
+
+    if os.path.exists(CORPUS_VOCAB_PATH):
+        try:
+            with open(CORPUS_VOCAB_PATH, "r") as f:
+                data = json.load(f)
+                for k, v in data.items():
+                    corpus_vocab[k] = set(v)
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Warning: Could not read {CORPUS_VOCAB_PATH}: {e}. Starting fresh.")
+    else:
+        print(f"Vocabulary file not found at {CORPUS_VOCAB_PATH}. Initializing empty.")
     
     splitter = RecursiveJsonSplitter(max_chunk_size=300)
 
@@ -32,8 +45,7 @@ def split_chunks(runs_data):
 
 
     print(f"Number of chunks created: {len(chunks)}")
-
-    with open("corpus_vocab.json", "w") as f:
+    with open(CORPUS_VOCAB_PATH, "w") as f:
         json.dump({g: sorted(w) for g, w in corpus_vocab.items()}, f, indent=2)
 
     return chunks
@@ -67,7 +79,7 @@ def split_run_chunks(run_data, splitter):
 
     
 if __name__ == "__main__":
-    experiment_name = "Default"
-    runs_data = get_all_runs_by_experiment_id(experiment_name)
+    experiment_name = "Iris_Classification"
+    runs_data = get_all_runs_by_experiment_name(experiment_name)
     flattened_chunks = split_chunks(runs_data)
     save_to_chroma(flattened_chunks)
