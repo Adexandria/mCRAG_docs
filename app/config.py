@@ -2,7 +2,7 @@ SECTION_ROUTING = {
     "summary":       ["info"],
     "performance":   ["info", "metrics"],
     "configuration": ["info", "params"],
-    "lineage":       ["info", "outputs"],       
+    "lineage":       ["info", "outputs", "inputs"],       
     "metadata":      ["info", "tags"],
 }
 
