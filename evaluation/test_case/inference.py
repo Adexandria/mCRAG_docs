@@ -1,18 +1,19 @@
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score
 from sklearn.model_selection import train_test_split
-from sklearn.neighbors import KDTree, KNeighborsClassifier
-from sklearn.metrics._dist_metrics import EuclideanDistance64
 import mlflow
+from sklearn.ensemble import RandomForestClassifier
 import pandas as pd
+import mlflow.data
+import joblib
 
 
-def log_model(X_train, y_train, X_test, y_test):
+def log_model(X_train, y_train, X_test, y_test, dataset):
     with mlflow.start_run():
         # Log the hyperparameters
         
         params = {
-         "max_iter": 200
+         "max_iter": 100
         }
         mlflow.log_params(params)
 
@@ -20,6 +21,8 @@ def log_model(X_train, y_train, X_test, y_test):
         lr = LogisticRegression(**params)
 
         lr.fit(X_train, y_train)
+
+        joblib.dump(lr, "logistic_regression_model.pkl")  
 
         # Log the model
         model_info = mlflow.sklearn.log_model(sk_model=lr, name="logistic_regression_model")
@@ -37,9 +40,11 @@ def log_model(X_train, y_train, X_test, y_test):
         f1 = f1_score(y_test, y_pred, average='weighted')
         mlflow.log_metric("f1_score", f1)
 
+        mlflow.log_input(dataset, context="Iris dataset for classification tasks")
+
         mlflow.set_tag("Training Info", "Basic LR model for iris data")   
 
-def random_forest_model(X_train, y_train, X_test, y_test):
+def random_forest_model(X_train, y_train, X_test, y_test, dataset):
     with mlflow.start_run():
         # Log the hyperparameters
         params = {
@@ -49,12 +54,11 @@ def random_forest_model(X_train, y_train, X_test, y_test):
         }
         mlflow.log_params(params)
 
-        # Train the model
-        from sklearn.ensemble import RandomForestClassifier
-
         rf = RandomForestClassifier(**params)
 
         rf.fit(X_train, y_train)
+
+        joblib.dump(rf, "random_forest_model.pkl")  # Save the model to a file
 
         # Log the model
         model_info = mlflow.sklearn.log_model(sk_model=rf, name="random_forest_model")
@@ -72,24 +76,36 @@ def random_forest_model(X_train, y_train, X_test, y_test):
         f1 = f1_score(y_test, y_pred, average='weighted')
         mlflow.log_metric("f1_score", f1)
 
+        mlflow.log_input(dataset, context="Iris dataset for classification tasks")
+
         mlflow.set_tag("Training Info", "Random Forest model for iris data")
 
 def inference():
     # Load the iris dataset
-    iris = pd.read_csv("https://raw.githubusercontent.com/mwaskom/seaborn-data/master/iris.csv")
+    dataset_url = "https://raw.githubusercontent.com/mwaskom/seaborn-data/master/iris.csv"
+    iris = pd.read_csv(dataset_url)
     X = iris.drop(columns=["species"], axis=1)
     y = iris["species"]
+
+    log_X = iris.drop(columns=["petal_length", "petal_width", "species"], axis=1)
+    log_y = iris["species"]
+
+    dataset = mlflow.data.from_pandas(
+            iris, source=dataset_url, name="iris_dataset", targets="species"
+    )
 
     # Split the dataset into training and testing sets
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
+    Logistic_X_train, Logistic_X_test, Logistic_y_train, Logistic_y_test = train_test_split(log_X, log_y, test_size=0.2, random_state=42)
+
     mlflow.set_tracking_uri("http://localhost:5000")
 
-    mlflow.set_experiment("Iris_Classification_Experiment")
+    mlflow.set_experiment("Iris_Classification")
 
     # Log models
-    log_model(X_train, y_train, X_test, y_test)
-    random_forest_model(X_train, y_train, X_test, y_test)
+    log_model(Logistic_X_train, Logistic_y_train, Logistic_X_test, Logistic_y_test, dataset)
+    random_forest_model(X_train, y_train, X_test, y_test, dataset)
 
 if __name__ == "__main__":
     inference()
