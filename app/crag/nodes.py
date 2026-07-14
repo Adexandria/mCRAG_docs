@@ -94,7 +94,7 @@ def grade_structure(state) :
         "groups_per_run": {rid: sorted(g) for rid, g in groups_covered.items()},
         "section_status": section_status,
         "proceed": len(correct) > 0
-                   and any(s["status"] == StructureGrade.OK for s in section_status.values()),
+                   and any(s["status"] != StructureGrade.INSUFFICIENT_DATA for s in section_status.values()),
     }
 
     return {"documents": correct, "grading_report": report}
