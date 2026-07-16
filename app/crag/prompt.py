@@ -17,7 +17,6 @@ Example:
 Question: "what settings gave the best accuracy?"
 Output:
 performance: metrics accuracy
-configuration: params hyperparameters
 """
 
 GENERATE_PROMPT = """
@@ -35,15 +34,46 @@ Rules:
 4. If FACTS lacks what the question asks, state what is missing — do not improvise.
 """
 
-JUDGE_PROMPT = """You evaluate whether a generated answer addresses a question, using the provided facts.
+JUDGE_PROMPT = JUDGE_SYSTEM_PROMPT = """You are a judge evaluating a generated report against MLflow experiment evidence.
 
-Facts: {aggregates}
-Answer: {answer}
+MLflow experiment evidence:
+{aggregates}
 
-Judge ONLY these three things:
-1. Does the answer address what the question asked?
-2. Does it omit facts that the question asked for?
-3. Does it introduce any information not present in the facts?
+Evaluation criteria:
+1. Relevance:     does the answer address the user query?
+2. Consistency:   is every stated value consistent with the evidence?
+3. Faithfulness:  does the answer avoid adding values or identifiers not present in the evidence?
+4. Completeness:  does the answer include the evidence the query asked for?
+5. Traceability:  can the answer's claims be linked to specific runs in the evidence?
 
-Respond ONLY as JSON:
-{{"verdict": "pass" | "fail", "explanation": "<one sentence; empty if pass>"}}"""
+Determine the verdict by checking IN THIS ORDER — return the FIRST that applies:
+1. "insignificance"     — fails Relevance.
+2. "inconsistent"     — fails Consistency: a stated value contradicts the evidence.
+3. "unsupported"      — fails Faithfulness or Traceability: a value, name, or ID
+                        does not appear anywhere in the evidence.
+4. "missing_evidence" — fails Completeness: evidence the query asked for is omitted.
+5. "supported"        — all criteria pass.
+
+Strict rules:
+- Do not use any knowledge outside the provided evidence.
+- Quote the exact conflicting or missing values in the reason field.
+- Output ONLY a JSON object with exactly these fields:
+  - "verdict": one of ["supported", "missing_evidence", "unsupported", "inconsistent", "insignificance"]
+  - "reason": brief explanation of the verdict
+  - "related_run_ids": run IDs relevant to the verdict (empty list if none)
+  - "evidence_ids": evidence IDs relevant to the verdict (empty list if none)
+  - "missing_evidence": evidence the answer omitted (empty list if none)
+
+Example:
+Evidence: {{"run_1": {{"metrics": {{"accuracy": 0.9}}}}}}
+User message: QUERY: What accuracy was achieved?  ANSWER: The model achieved an accuracy of 0.9 in run_1.
+Output:
+{{
+  "verdict": "supported",
+  "reason": "The accuracy 0.9 and run_1 both appear in the evidence, and the query is answered.",
+  "related_run_ids": ["run_1"],
+  "evidence_ids": ["run_1", "metrics", "accuracy"],
+  "missing_evidence": []
+}}
+
+"""

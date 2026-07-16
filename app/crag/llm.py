@@ -1,11 +1,14 @@
 import json
+import re
 
+from sympy import re
 import transformers
 import torch
 
 from app.config import SECTION, SECTION, CORPUS_VOCAB_PATH
 from app.crag.prompt import REWRITE_PROMPT_TEMPLATE, GENERATE_PROMPT, JUDGE_PROMPT
 
+from app.crag.response import JudgeResponse
 
 ## LLM Pipeline
 
@@ -83,43 +86,66 @@ def generate_query(query: str, aggregates: str) -> str:
     """
     prompt = GENERATE_PROMPT.format(aggregates=aggregates)
 
+    user_message = f"QUERY: {query}"
+
     messages = [
         {"role": "system", "content": prompt},
-        {"role": "user", "content": query},
+        {"role": "user", "content": user_message},
     ]
+
+    generation_config = transformers.GenerationConfig(
+        max_new_tokens=500,
+        do_sample=False,
+        temperature=0.0,
+        
+    )
     response = pipeline(
         messages,
-        max_new_tokens=500,   
-        do_sample=False,   
+        generation_config=generation_config,
     )
     response_text = response[0]["generated_text"][-1]["content"]
 
     return response_text
 
-def grade_response(query: str, answer: str, aggregates: str) -> dict:
+def grade_response(query: str, answer: str, aggregates: str) -> JudgeResponse:
     """
     Grades the generated answer based on the user query and the provided facts (aggregates).
     Returns a dictionary containing the verdict and explanation.
     """
-    prompt = JUDGE_PROMPT.format(aggregates=aggregates, answer=answer)
+    
+    prompt = JUDGE_PROMPT.format(aggregates=aggregates)
+    user_message = f"QUERY: {query}\nANSWER: {answer}"
 
     messages = [
         {"role": "system", "content": prompt},
-        {"role": "user", "content": query},
+        {"role": "user", "content": user_message},
     ]
+    generation_config = transformers.GenerationConfig(
+        max_new_tokens=500,
+        do_sample=False,
+        temperature=0.0,
+
+    )
     response = pipeline(
         messages,
-        max_new_tokens=100,    
-        do_sample=False,      
+        generation_config=generation_config,
     )
     response_text = response[0]["generated_text"][-1]["content"]
+    print(f"[grade_response] RAW OUTPUT:\n{response_text!r}\n")  
 
     try:
-        verdict = json.loads(response_text)
-    except json.JSONDecodeError:
-        verdict = {"verdict": "fail", "explanation": "Failed to parse JSON from LLM response."}
-
-    return verdict
+        graded_response = JudgeResponse.model_validate_json(response_text)
+        return graded_response
+    except Exception as e:
+        print(f"[grade_response] Failed to parse response: {e}")
+        return JudgeResponse(
+            verdict="unsupported",
+            reason="Failed to parse LLM output.",
+            evidence_ids=[],
+            related_run_ids=[],
+            missing_evidence=[]
+        )
+    
 
 if __name__ == "__main__":
     test_query = "What are the hyperparameters and metrics for the latest runs?" ## change this to represent the examples of queries you want to test

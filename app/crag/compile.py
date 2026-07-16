@@ -3,7 +3,7 @@ from app.crag.graph import app
 
 inputs = {
     "query": "Extract the run with the best metric?",
-    "experiment_id": "0",
+    "experiment_id": "2",
      "retry_count": 0
 }
 for out in app.stream(inputs):

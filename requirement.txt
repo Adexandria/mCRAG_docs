@@ -4,3 +4,4 @@ chromadb
 langchain-chroma
 sentence-transformers
 langgraph
+pydantic

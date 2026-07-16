@@ -2,6 +2,7 @@ from collections import defaultdict
 import json
 import os
 import re
+from app.crag.response import JudgeResponse
 from app.crag.state import MetadataGrade, StructureGrade, GraphState
 from app.crag.vector_stores import vector_store
 from app.config import EXTRACT_ROUTING, SECTION_ROUTING, PREFIX_ROUTING
@@ -251,9 +252,10 @@ def grade_answer(state):
     facts = json.dumps(aggregates, indent=2)
 
     grading_result = grade_response(query, generation, facts)
+
     return {"grading_result": grading_result, "query": query, "aggregates": aggregates}
 
-def decide_to_transform_query(state):
+def decide_after_judging(state):
     """
     Decides whether to transform the query based on the grading result.
     
@@ -264,13 +266,18 @@ def decide_to_transform_query(state):
     """
     print("---Decide to Transform Query---")
 
-    grading_result = state["grading_result"]
+    grading_result: JudgeResponse = state["grading_result"]
 
-    proceed = grading_result.get("verdict", False)
+    retry_count = state["retry_count"]
 
-    if proceed == "pass":
+    proceed = grading_result.verdict
+
+    if proceed == "supported" or retry_count >= MAX_RETRIES:
         print("---DECISION: PROCEED TO END---")
         return "END"
+    
+    if proceed == "inconsistent":
+        return "generate"
 
     print("---DECISION: GENERATED ANSWER IS NOT SUFFICIENT, REGENERATE QUERY---")
     return "transform_query"

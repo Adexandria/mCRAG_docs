@@ -1,6 +1,8 @@
 from typing import List, TypedDict
 from langchain_core.documents import Document
 
+from app.crag.response import JudgeResponse
+
 # Grade the chunks based on the metadata
 class MetadataGrade:
     VALID = "valid" # Include correct metadata
@@ -42,7 +44,7 @@ class GraphState(TypedDict):
     generation : str
     aggregates: dict
 
-    grading_result: dict                        
+    grading_result: JudgeResponse                        
     retry_count: int
 
 
