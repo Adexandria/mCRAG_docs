@@ -52,3 +52,9 @@ SKIP_PREFIXES = (
 
 # Location of the corpus vocabulary JSON file, which contains the vocabulary for each section.
 CORPUS_VOCAB_PATH = "corpus_vocab.json"
+
+## Location of template
+TEMPLATE_PATH = "template/doc_template.html"
+
+## Media Path
+MEDIA_PATH = "media"
