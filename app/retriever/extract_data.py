@@ -1,6 +1,7 @@
 import argparse
 import http
 import os
+import re
 from typing import Any
 import requests
 from collections import defaultdict
@@ -152,28 +153,50 @@ def flatten(obj, prefix=None):
         yield prefix, obj
 
 
-def extract_keywords(run_tuples: list[tuple]) -> dict[str, set]:
+def extract_keywords(run_tuples: list[tuple]) -> dict[str, set[str]]:
     """
-    Extract keywords from the flattened run data based on the defined PREFIX_ROUTING and ignoring certain stop terms and prefixes.
+    Extracts keywords from the flattened run data based on the defined routing and stop terms.
+    Returns a dictionary where keys are groups and values are sets of keywords.
     """
-    terms = defaultdict(set)
+    terms: dict[str, set[str]] = defaultdict(set)
+ 
     for path, value in run_tuples:
+        path = normalize_path(path)
         if path.startswith(SKIP_PREFIXES):
             continue
-        for group, prefix in PREFIX_ROUTING.items():
-            if not path.startswith(prefix):
+ 
+        for group, prefixes in PREFIX_ROUTING.items():
+            if not path.startswith(prefixes):
                 continue
-            key = path.removeprefix(prefix)
-            for word in {key} | set(key.replace(".", " ").replace("_", " ").split()):
-                if word.lower() not in STOP_TERMS and not word.isdigit():
-                    terms[group].add(word.lower())
-            # enum-like values: short alphabetic strings (FINISHED, LOCAL, split names)
+            matched = (
+                next(p for p in prefixes if path.startswith(p))
+                if isinstance(prefixes, tuple) else prefixes
+            )
+            key = path.removeprefix(matched).lower()
+            if not key:
+                break
+ 
+            spaced = key.replace(".", " ").replace("_", " ")
+            candidates = {key, spaced} | set(spaced.split())
+ 
+            for word in candidates:
+                if word and word not in STOP_TERMS and not word.isdigit():
+                    terms[group].add(word)
+ 
+            # enum-like values: short alphabetic strings (FINISHED, LOCAL)
             if isinstance(value, str) and value.isalpha() and len(value) <= 20:
-                terms[group].add(value.lower())
+                v = value.lower()
+                if v not in STOP_TERMS:
+                    terms[group].add(v)
             break
-    return terms
+ 
+    return dict(terms)
     
-
+def normalize_path(path: str) -> str:
+    """
+    Format the path to a more readable format by replacing numeric indices with dot notation and applying any alias mappings.
+    """
+    return re.sub(r"\[(\d+)\]", r".\1", path)
 
 ## An example function to use while testing.
 def get_run_by_id(run_id):
