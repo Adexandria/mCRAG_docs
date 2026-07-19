@@ -1,26 +1,24 @@
 import json
+import os
 import re
-
-from sympy import re
+from dotenv import load_dotenv 
+import anthropic
+from jsonschema import ValidationError
+from pydantic_core import ValidationError
 import transformers
 import torch
 
 from app.config import SECTION, SECTION, CORPUS_VOCAB_PATH
 from app.crag.prompt import REWRITE_PROMPT_TEMPLATE, GENERATE_PROMPT, JUDGE_PROMPT
 
-from app.crag.response import JudgeResponse
+from app.crag.response import GenerateResponse, JudgeResponse, RewriteQueryResponse
 
 ## LLM Pipeline
+load_dotenv() 
 
-model_id = "meta-llama/Llama-3.2-3B-Instruct"
-
-pipeline = transformers.pipeline(
-    "text-generation",
-    model=model_id,
-    model_kwargs={"dtype": torch.bfloat16},
-    device_map="auto",
-)
-
+api_key = os.environ.get("ANTHROPIC_API_KEY")
+client = anthropic.Anthropic(api_key=api_key)
+model_name = "claude-haiku-4-5-20251001" 
 
 def generate_section():
     """
@@ -32,6 +30,8 @@ def generate_section():
         raise ValueError(f"Corpus vocabulary is empty or not found at {CORPUS_VOCAB_PATH}. Please ensure the file exists and contains valid JSON data.")
     corpus_vocab = {}
     for section, fields in SECTION.items():
+        if section is "info":
+            continue  # Skip the "info" section as it is not a valid section for query rewriting
         vocab_set = set()
         for field in fields.split():
             print(f"Processing section '{section}', field '{field}'")
@@ -46,92 +46,97 @@ def generate_section():
 def rewrite_query(query: str) -> dict[str, str]:
     """
     Rewrite a vague user query into corpus-vocabulary section queries.
-    Falls back to the full section vocabulary if the LLM output is unparseable.
+    Falls back to the full section vocabulary if the LLM output is unusable.
     """
-    vocab = generate_section()          # {section: keywords} — info already excluded
+    vocab = generate_section()
     section_vocab = "\n".join(f"{k}: {v}" for k, v in vocab.items())
-
     prompt = REWRITE_PROMPT_TEMPLATE.format(section_queries=section_vocab)
-    messages = [
-        {"role": "system", "content": prompt},
-        {"role": "user", "content": query},
-    ]
-    response = pipeline(messages, max_new_tokens=100, do_sample=False)
-    response_text = response[0]["generated_text"][-1]["content"]
 
-    print(f"[rewrite_query] RAW OUTPUT:\n{response_text!r}\n")      # ① see the failure
+    response = client.messages.create(
+        model=model_name,
+        max_tokens=150,
+        system=prompt,
+        messages=[{"role": "user", "content": query}],
+    )
+    response_text = response.content[0].text
+    print(f"[rewrite_query] RAW OUTPUT:\n{response_text!r}\n")
 
-    routed = {}
-    for line in response_text.splitlines():
-        if ":" not in line:
-            continue
-        section, _, keywords = line.partition(":")
-        section = section.strip().strip("*-#• ").lower()             # ② tolerate md/bullets
-        keywords = keywords.strip().strip("*` ")
-        print(f"Detected section: '{section}', keywords: '{keywords}'")
-        if section in SECTION and keywords:
-            routed[section] = keywords
+    rewritten = RewriteQueryResponse({})
+    m = re.search(r"\{.*\}", response_text, re.DOTALL)
+    if m:
+        try:
+            rewritten = RewriteQueryResponse.model_validate_json(m.group(0))
+        except (ValueError, ValidationError) as e:
+            print(f"[rewrite_query] validation failed: {e}")
 
-    if not routed:                                                    # ③ fail-safe fallback
-        print("[rewrite_query] nothing parsed — falling back to full section vocabulary")
-        routed = dict(vocab)
+    if rewritten.is_empty():
+        print("[rewrite_query] falling back to full section vocabulary")
+        return dict(vocab)
 
-    return routed
+    return rewritten.as_queries()
 
 ## This takes so much time, find a better llm
 
-def generate_query(query: str, aggregates: str) -> str:
+def generate_report(query: str, aggregates: str) -> GenerateResponse:
     """
     Generates a query based on the user input using the LLM pipeline.
     """
-    prompt = GENERATE_PROMPT.format(aggregates=aggregates)
-
-    user_message = f"QUERY: {query}"
+    user_message = f"QUERY: {query} \nFACTS: {aggregates}"
 
     messages = [
-        {"role": "system", "content": prompt},
         {"role": "user", "content": user_message},
     ]
-
-    generation_config = transformers.GenerationConfig(
-        max_new_tokens=500,
-        do_sample=False,
-        temperature=0.0,
-        
+    response = client.messages.create(
+        model=model_name,
+        max_tokens=500,
+        system=GENERATE_PROMPT,
+        messages=messages,
     )
-    response = pipeline(
-        messages,
-        generation_config=generation_config,
-    )
-    response_text = response[0]["generated_text"][-1]["content"]
+    response_text = response.content[0].text
 
-    return response_text
+    m = re.search(r"\{.*\}", response_text, re.DOTALL)   
+    if not m:
+        raise ValueError(f"No JSON object found in: {response_text[:120]!r}")
+    
+    response_text = m.group(0)
 
-def grade_response(query: str, answer: str, aggregates: str) -> JudgeResponse:
+    try:
+        generated_response = GenerateResponse.model_validate_json(response_text)
+        return generated_response
+    except Exception as e:
+        print(f"[generate_query] Failed to parse response: {e}")
+        return GenerateResponse(
+            answer="",
+            extracted={}
+        )
+
+
+def grade_report(query: str, answer: str, aggregates: str) -> JudgeResponse:
     """
     Grades the generated answer based on the user query and the provided facts (aggregates).
     Returns a dictionary containing the verdict and explanation.
     """
-    
-    prompt = JUDGE_PROMPT.format(aggregates=aggregates)
-    user_message = f"QUERY: {query}\nANSWER: {answer}"
+
+    user_message = f"QUERY: {query}\nANSWER: {answer} \n MLflow experiment evidence: {aggregates}"
 
     messages = [
-        {"role": "system", "content": prompt},
         {"role": "user", "content": user_message},
     ]
-    generation_config = transformers.GenerationConfig(
-        max_new_tokens=500,
-        do_sample=False,
-        temperature=0.0,
-
+    
+    response = client.messages.create(
+        model=model_name,
+        max_tokens=500,
+        system=JUDGE_PROMPT,
+        messages=messages,
     )
-    response = pipeline(
-        messages,
-        generation_config=generation_config,
-    )
-    response_text = response[0]["generated_text"][-1]["content"]
+    response_text = response.content[0].text
     print(f"[grade_response] RAW OUTPUT:\n{response_text!r}\n")  
+
+    m = re.search(r"\{.*\}", response_text, re.DOTALL)   
+    if not m:
+        raise ValueError(f"No JSON object found in: {response_text[:120]!r}")
+    
+    response_text = m.group(0)
 
     try:
         graded_response = JudgeResponse.model_validate_json(response_text)
@@ -145,7 +150,6 @@ def grade_response(query: str, answer: str, aggregates: str) -> JudgeResponse:
             related_run_ids=[],
             missing_evidence=[]
         )
-    
 
 if __name__ == "__main__":
     test_query = "What are the hyperparameters and metrics for the latest runs?" ## change this to represent the examples of queries you want to test
