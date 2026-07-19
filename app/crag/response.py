@@ -1,7 +1,11 @@
-from pydantic import BaseModel, Field, model_validator,AliasPath
+from pydantic import BaseModel, Field, RootModel, model_validator,AliasPath
+from typing import Any
+from app.config import SECTION
 
 VALID_VERDICTS = {"supported", "missing_evidence", "unsupported",
-                  "inconsistent", "insignificance"}
+                  "inconsistent", "unresponsive", "data_insufficient"}
+
+SECTION = set(["summary", "performance", "configuration", "lineage", "metadata"])
 
 class JudgeResponse(BaseModel):
     verdict: str = Field(..., description="The verdict of the evaluation", validation_alias = AliasPath("verdict"))
@@ -21,3 +25,33 @@ class JudgeResponse(BaseModel):
                 data["verdict"] = raw                   
         return data
 
+
+class GenerateResponse(BaseModel):
+    answer: str = Field(..., description="The generated answer", validation_alias = AliasPath("answer"))
+
+class RewriteQueryResponse(RootModel[dict[str, list[str]]]):
+
+    @model_validator(mode="before")
+    @classmethod
+    def gate_sections(cls, data):
+        if not isinstance(data, dict):
+            return {}                          
+        gated = {}
+        for section, terms in data.items():
+            s = str(section).strip().lower()
+            if s not in SECTION:
+                continue                         
+            if isinstance(terms, str):           
+                terms = terms.split()
+            if isinstance(terms, list):
+                cleaned = [str(t).strip().lower() for t in terms if str(t).strip()]
+                if cleaned:
+                    gated[s] = cleaned
+        return gated
+
+    def as_queries(self) -> dict[str, str]:
+        """The shape retrieval consumes: {section: 'term term term'}."""
+        return {s: " ".join(terms) for s, terms in self.root.items()}
+
+    def is_empty(self) -> bool:
+        return not self.root
