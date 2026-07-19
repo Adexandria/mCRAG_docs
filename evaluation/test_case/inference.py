@@ -22,7 +22,6 @@ def log_model(X_train, y_train, X_test, y_test, dataset):
 
         lr.fit(X_train, y_train)
 
-        joblib.dump(lr, "logistic_regression_model.pkl")  
 
         # Log the model
         model_info = mlflow.sklearn.log_model(sk_model=lr, name="logistic_regression_model")
@@ -44,6 +43,27 @@ def log_model(X_train, y_train, X_test, y_test, dataset):
 
         mlflow.set_tag("Training Info", "Basic LR model for iris data")   
 
+
+def log_failed_run_model(X_train, y_train):
+    try:
+        # Simulate a failure during model logging
+        with mlflow.start_run():
+            # Log the hyperparameters
+            params = {
+         "max_iter": 100
+            }
+            mlflow.log_params(params)
+
+            # Train the model
+            lr = LogisticRegression(**params)
+
+            lr.fit(X_train, y_train)
+            raise ValueError("Intentional failure for testing purposes")  # Simulate a failure
+        
+    except Exception as e:
+        print(f"Run failed with error: {e}")
+
+
 def random_forest_model(X_train, y_train, X_test, y_test, dataset):
     with mlflow.start_run():
         # Log the hyperparameters
@@ -58,7 +78,6 @@ def random_forest_model(X_train, y_train, X_test, y_test, dataset):
 
         rf.fit(X_train, y_train)
 
-        joblib.dump(rf, "random_forest_model.pkl")  # Save the model to a file
 
         # Log the model
         model_info = mlflow.sklearn.log_model(sk_model=rf, name="random_forest_model")
@@ -79,6 +98,49 @@ def random_forest_model(X_train, y_train, X_test, y_test, dataset):
         mlflow.log_input(dataset, context="Iris dataset for classification tasks")
 
         mlflow.set_tag("Training Info", "Random Forest model for iris data")
+
+
+def log_failed_run_random_forest_model(X_train, y_train):
+    try:
+        # Simulate a failure during model logging
+        with mlflow.start_run():
+            # Log the hyperparameters
+            params = {
+                "n_estimators": 100,
+                "max_depth": 5,
+                "random_state": 42
+            }
+            mlflow.log_params(params)
+
+            rf = RandomForestClassifier(**params)
+
+            rf.fit(X_train, y_train)
+            raise ValueError("Intentional failure for testing purposes")  # Simulate a failure
+        
+    except Exception as e:
+        print(f"Run failed with error: {e}")
+
+def log_model_info_random_forest():
+    """
+    Logs the model information to MLflow.
+    """
+    with mlflow.start_run():
+        params = {
+                "n_estimators": 100,
+                "max_depth": 5,
+                "random_state": 42
+            }
+        mlflow.log_params(params)
+
+def log_model_info_logistic_regression():
+    """
+    Logs the model information to MLflow.
+    """
+    with mlflow.start_run():
+        params = {
+         "max_iter": 100
+        }
+        mlflow.log_params(params)
 
 def inference():
     # Load the iris dataset
@@ -104,8 +166,14 @@ def inference():
     mlflow.set_experiment("Iris_Classification")
 
     # Log models
+    
+    for i in range(5):
+        log_failed_run_model(Logistic_X_train, Logistic_y_train)
+        log_failed_run_random_forest_model(X_train, y_train)
+        log_model_info_random_forest()
+        log_model_info_logistic_regression()
+
     log_model(Logistic_X_train, Logistic_y_train, Logistic_X_test, Logistic_y_test, dataset)
-    random_forest_model(X_train, y_train, X_test, y_test, dataset)
 
 if __name__ == "__main__":
     inference()
