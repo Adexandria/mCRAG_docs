@@ -6,3 +6,9 @@ __pycache__/
 *.json
 mlartifacts/
 *.pkl
+*/*.html
+*/*.pdf
+*/*.md
+*.pdf   
+*.md
+*.html
