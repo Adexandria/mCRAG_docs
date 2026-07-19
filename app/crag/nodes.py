@@ -6,9 +6,9 @@ from app.crag.response import JudgeResponse
 from app.crag.state import MetadataGrade, StructureGrade, GraphState
 from app.crag.vector_stores import vector_store
 from app.config import EXTRACT_ROUTING, SECTION_ROUTING, PREFIX_ROUTING
-from app.crag.llm import generate_query, grade_response, rewrite_query
+from app.crag.llm import generate_report, rewrite_query, grade_report
 
-k = os.environ.get("RETRIEVAL_K", 4)
+k = int(os.environ.get("RETRIEVAL_K", 4))
 MAX_RETRIES = 2
 
 def retrieval(state):
@@ -200,11 +200,11 @@ def aggregate_results(state):
     """
     print("---Aggregate Results---")
 
-    grading_results = state["documents"]
+    graded_results = state["documents"]
 
     runs_tuples = defaultdict(list)
 
-    for doc in sorted(grading_results, key=lambda d: d.metadata["chunk_index"]):
+    for doc in sorted(graded_results, key=lambda d: d.metadata["chunk_index"]):
         runs_tuples[doc.metadata["run_id"]].extend(parse_chunk(doc.page_content))
 
     extracted_data = {run_id: extract_all(tuples) for run_id, tuples in runs_tuples.items()}
@@ -228,9 +228,9 @@ def generate(state):
 
     facts = json.dumps(aggregates, indent=2)
 
-    generated_query = generate_query(query, facts)
+    generated_query = generate_report(query, facts)
 
-    return {"generation": generated_query, "query": query, "aggregates": aggregates}
+    return {"generation": generated_query.answer, "query": query, "aggregates": aggregates}
 
 def grade_answer(state):
     """
@@ -249,11 +249,11 @@ def grade_answer(state):
 
     generation = state["generation"]
 
-    facts = json.dumps(aggregates, indent=2)
+    facts = json.dumps(state["aggregates"], separators=(",", ":"), default=str)
 
-    grading_result = grade_response(query, generation, facts)
+    grading_result = grade_report(query, generation, facts)
 
-    return {"grading_result": grading_result, "query": query, "aggregates": aggregates}
+    return {"grading_result": grading_result, "query": query, "aggregates": facts}
 
 def decide_after_judging(state):
     """
@@ -332,7 +332,7 @@ if __name__ == "__main__":
    
     state = {
         "query": "Extract the run with the best metric?",
-        "experiment_id": "0"
+        "experiment_id": "2"
     }
     results = retrieval(state)
     print(len(results["documents"]), "documents retrieved.")
@@ -350,7 +350,7 @@ if __name__ == "__main__":
     aggragate_state = {
         "query": state["query"],
         "experiment_id": state["experiment_id"],
-        "grading_results": grading_results["documents"]
+        "documents": grading_results["documents"]
     }
 
     aggregated_results = aggregate_results(aggragate_state)
@@ -365,17 +365,17 @@ if __name__ == "__main__":
         "aggregates": aggregated_results["aggregates"]
     }
 
-    generated_results = generate(generate_state)
+    # generated_results = generate(generate_state)
 
-    print("Generated results:", generated_results["generation"])
+    # print("Generated results:", generated_results["generation"])
 
-    print("Generation completed.")
+    # print("Generation completed.")
 
     graded_answer_state = {
         "query": state["query"],
         "experiment_id": state["experiment_id"],
         "aggregates": aggregated_results["aggregates"],
-        "generation": generated_results["generation"]
+        "generation": "Run 992435a3093c4c508ea95bbaad49a2c2 achieved the best metric with an accuracy of 1.0."
     }
 
     grading_results = grade_answer(graded_answer_state)
