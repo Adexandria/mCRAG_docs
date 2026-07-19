@@ -66,6 +66,9 @@ def split_run_chunks(run_data, splitter):
         "experiment_id": run_data["info"]["experiment_id"],
         "status": run_data["info"]["status"],
         "run_name": run_data["info"]["run_name"],
+        "user_id": run_data["info"]["user_id"],
+        "start_time": run_data["info"]["start_time"],
+        "end_time": run_data["info"]["end_time"],
     }
     chunks = splitter.split_json(run_data)
 
