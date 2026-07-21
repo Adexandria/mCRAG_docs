@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Experiment {{experiment_id}} — documentation</title>
+<style>
+  :root {
+    --ink: #1A1D21; --muted: #5A6472; --hair: #E2E5E9;
+    --label: #2F3E8F; --card: #F7F8FA;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: "Segoe UI", -apple-system, Arial, sans-serif;
+    color: var(--ink); background: #fff;
+    max-width: 760px; margin: 0 auto; padding: 48px 40px;
+    line-height: 1.55; font-size: 14px;
+  }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 18px; }
+  h1 { font-size: 21px; font-weight: 600; letter-spacing: -0.01em; }
+  .meta { color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+  .stamp {
+    float: right; font-size: 12px; font-weight: 600;
+    padding: 5px 14px; border-radius: 3px; letter-spacing: 0.04em;
+    color: #0E6E45; background: #E7F5EE; border: 1px solid #0E6E45;
+    text-transform: uppercase;
+  }
+  section { margin-top: 30px; }
+  .label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--label);
+    border-bottom: 1px solid var(--hair); padding-bottom: 5px; margin-bottom: 12px;
+  }
+  .query {
+    font-size: 15px; padding: 10px 16px;
+    border-left: 3px solid var(--label); background: var(--card);
+  }
+  .response {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 15.5px; line-height: 1.7;
+  }
+  .note {
+    margin-top: 12px; font-size: 13px; padding: 9px 14px;
+    color: #0E6E45; background: #E7F5EE; border-left: 3px solid #0E6E45;
+  }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .run {
+    border: 1px solid var(--hair); border-radius: 6px;
+    padding: 14px 16px; background: #fff; break-inside: avoid;
+  }
+  .run h3 { font-size: 14px; font-weight: 600; display: inline; }
+  .status {
+    float: right; font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em;
+    padding: 2px 9px; border-radius: 3px;
+  }
+  .run table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  .run td { padding: 4px 0; border-top: 1px solid var(--hair); }
+  .run td:first-child { color: var(--muted); width: 38%; }
+  .run td:last-child { text-align: right; }
+  .mono { font-family: Consolas, Menlo, monospace; font-size: 11.5px; word-break: break-all; }
+  .none { color: var(--muted); font-style: italic; }
+  footer {
+    margin-top: 40px; padding-top: 12px; border-top: 1px solid var(--hair);
+    color: var(--muted); font-size: 11.5px;
+  }
+  @page { size: A4; margin: 18mm 16mm; }
+  @media print {
+    body { padding: 0; max-width: none; }
+    .stamp, .note, .status, .query { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cards { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 560px) { .cards { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <span class="stamp">{{judge_verdict}}</span>
+  <h1>Experiment documentation</h1>
+  <p class="meta">Experiment {{experiment_id}} generated at {{date_time}} from MLFlow CRAG pipeline</p>
+</header>
+
+<section>
+  <p class="label">Query</p>
+  <p class="query">{{query}}</p>
+</section>
+
+<section>
+  <p class="label">Response</p>
+  <div class="response">{{response}}</div>
+  
+</section>
+
+<section>
+  <p class="label">Run information</p>
+  <div class="run">
+  <span class="status" style="color:#0E6E45;background:#E7F5EE">{{status}}</span>
+  <h3>{{run_name}}</h3>
+  <table>
+    <tr><td>Run id</td><td class="mono">{{run_id}}</td></tr>
+    <tr><td>Created by</td><td>{{created_by}}</td></tr>
+    <tr><td>Duration</td><td>{{duration}}</td></tr>
+  </table>
+</div>  
+</section>
+
+</body>
+</html>
