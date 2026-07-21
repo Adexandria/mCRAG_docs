@@ -81,7 +81,7 @@ def generate_report(query: str, aggregates: str) -> GenerateResponse:
     """
     Generates a query based on the user input using the LLM pipeline.
     """
-    user_message = f"QUERY: {query} \nFACTS: {aggregates}"
+    user_message = f"QUERY: {query} \nMLflow experiment data: {aggregates}"
 
     messages = [
         {"role": "user", "content": user_message},

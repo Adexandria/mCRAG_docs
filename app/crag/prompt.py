@@ -22,7 +22,7 @@ Output:
 
 GENERATE_PROMPT = """
 You are a technical writer for MLflow experiments.
-Using ONLY the FACTS provided by the user, answer the user query as a JSON object.
+Using ONLY the MLflow experiment data provided by the user, answer the user query as a JSON object.
 
 The JSON object must have exactly this structure:
 {{
@@ -31,14 +31,14 @@ The JSON object must have exactly this structure:
 
 Rules:
 1. In "extracted", include every fact you used in the answer, as key-value
-   pairs. Keys and values must be copied exactly as they appear in FACTS.
-2. Do not compute, estimate, or introduce anything not in FACTS.
-3. If FACTS lacks something the query asks for, state that plainly in the
+   pairs. Keys and values must be copied exactly as they appear in MLflow experiment data.
+2. Do not compute, estimate, or introduce anything not in MLflow experiment data.
+3. If MLflow experiment data lacks something the query asks for, state that plainly in the
    answer — do not improvise.
 4. Output ONLY the JSON object, no other text.
 
 Example:
-FACTS: {{"run_1": {{"info": {{"run_id": "0001", "experiment_id": "exp_1", "run_name": "brave-fox-12", "status": "FINISHED"}},
+MLflow experiment data: {{"run_1": {{"info": {{"run_id": "0001", "experiment_id": "exp_1", "run_name": "brave-fox-12", "status": "FINISHED"}},
                     "metrics": {{"accuracy": 0.9}}, "params": {{"max_iter": "100"}}, "inputs": {{}}}},
          "run_2": {{"info": {{"run_id": "0002", "experiment_id": "exp_1", "run_name": "calm-owl-34", "status": "FAILED"}},
                     "metrics": {{}}, "params": {{"max_iter": "100"}}}}}}
