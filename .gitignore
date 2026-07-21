@@ -12,3 +12,4 @@ mlartifacts/
 *.pdf   
 *.md
 *.html
+!templates/*.html
