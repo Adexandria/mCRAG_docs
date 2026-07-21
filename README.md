@@ -1,4 +1,4 @@
-# MLflow CRAG Documentation
+# MLFlow CRAG Documentation
 
 Automated MLflow experiment documentation using Corrective Retrieval-Augmented Generation (CRAG). The pipeline retrieves experiment data from MLflow, validates it structurally, and generates evidence-grounded documentation , with corrective loops that rewrite queries using corpus vocabulary when retrieval misses, and an LLM judge that verifies every generated claim against the MLflow evidence.
 
