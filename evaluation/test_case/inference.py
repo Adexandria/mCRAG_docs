@@ -174,6 +174,7 @@ def inference():
         log_model_info_logistic_regression()
 
     log_model(Logistic_X_train, Logistic_y_train, Logistic_X_test, Logistic_y_test, dataset)
+    random_forest_model(X_train, y_train, X_test, y_test, dataset)
 
 if __name__ == "__main__":
     inference()
