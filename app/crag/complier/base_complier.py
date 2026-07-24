@@ -13,7 +13,6 @@ inputs = {
      "retry_count": 0
 }
 app = base_workflow()
-final_state = app.invoke(inputs)
 
 final_state = None
 for mode, out in app.stream(inputs, stream_mode=["updates", "values"]):

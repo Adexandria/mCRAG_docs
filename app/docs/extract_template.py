@@ -1,82 +1,186 @@
-from collections import defaultdict
-import datetime
-from os import path
 import os
-from app.crag.nodes import parse_chunk
-from app.crag.state import GraphState
-from app.docs.response import MIMETYPE, TemplateResponse
-from app.config import TEMPLATE_PATH
+
 from weasyprint import HTML
+from app.crag.state import GraphState
+from app.docs.response import MIMETYPE
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
 from langchain_core.documents import Document
 
+from datetime import datetime
+from html import escape
 
-def extract_template_response(state: GraphState) -> TemplateResponse:
-    """Builds the TemplateResponse for the documentation renderer from the final graph state."""
-    verdict = state["grading_result"].verdict if state["grading_result"] else "unknown"
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+import json
+from app.retriever.extract_data import get_run_by_id
+from template.doc_template import PAGE, RUN_CARD, VERDICTS, VERDICT_NOTES, VERDICT_LEGEND, STATUS_COLORS, PIPELINE_VERSION
 
-    run_id = (state["grading_result"].related_run_ids[0]
-              if state["grading_result"].related_run_ids else "")
 
-    meta = next(
-    (d.metadata for d in state["documents"] if d.metadata["run_id"] == run_id),
-        None,
-    ) if run_id else None
+def _duration(info: dict) -> str:
+    start, end = info.get("start_time"), info.get("end_time")
+    if not (start and end):
+        return "—"
+    try:
+        secs = (int(end) - int(start)) / 1000
+    except (TypeError, ValueError):
+        return "—"
+    return f"{secs:.2f} s" if secs < 60 else f"{secs/60:.1f} min"
 
-    if meta is None:
-        print(f"[extract_template_response] run {run_id!r} not found in documents.")
-        return TemplateResponse(
-            status="", run_id="", run_name="", created_by="",
-            duration=0, experiment_id=state["experiment_id"],
-            judge_verdict=verdict, query=state["query"],
-            date_time=timestamp, response=state["generation"],
-        )
 
-    start, end = meta.get("start_time"), meta.get("end_time")
-    duration = (end - start) / 1000 if start and end else 0
+def _rows(items: dict, mono_keys=()) -> str:
+    if not items:
+        return '<tr><td colspan="2" class="none">none recorded</td></tr>'
+    out = []
+    for k, v in items.items():
+        v_str = str(v)
+        cls = ' class="mono"' if any(m in k.lower() for m in mono_keys) else ""
+        if v_str.startswith(("http://", "https://")):
+            cell = (f'<a href="{escape(v_str, quote=True)}" class="srclink" '
+                    f'target="_blank" rel="noopener">{escape(v_str)}</a>')
+        else:
+            cell = escape(v_str)
+        out.append(f"<tr><td>{escape(str(k))}</td><td{cls}>{cell}</td></tr>")
+    return "\n".join(out)
 
-    return TemplateResponse(
-        status=meta.get("status", ""),
-        run_id=run_id,
-        run_name=meta.get("run_name", ""),
-        created_by=meta.get("user_id", ""),
-        duration=duration,
-        experiment_id=state["experiment_id"],
-        judge_verdict=verdict,
-        query=state["query"],
-        date_time=timestamp,
-        response=state["generation"],
+
+def _suffix_pick(group: dict, wanted: dict) -> dict:
+    """Pick fields from a flat group dict by key suffix.
+    wanted: {display_label: suffix}"""
+    out = {}
+    for label, suffix in wanted.items():
+        for k, v in group.items():
+            if str(k).lower().endswith(suffix):
+                out[label] = v
+                break
+    return out
+
+def _kv(entries: list) -> dict:
+    """MLflow's [{'key': k, 'value': v}, ...] → {k: v}"""
+    return {e["key"]: e["value"] for e in (entries or [])}
+
+
+def _first(lst: list) -> dict:
+    return (lst or [{}])[0] or {}
+
+
+def extract_source_url(ds: dict) -> str:
+    """MLflow /inputs/dataset_inputs shape → dataset source URL string."""
+    source = ds.get("source", "")
+    if not source:
+        return ""
+    try:
+        source = json.loads(source)
+    except (json.JSONDecodeError, TypeError):
+        return str(source)
+    
+    return source.get("url", "")
+
+def extract_run_info(run: dict) -> str:
+    """One run (raw MLflow /runs/get shape) → rendered RUN_CARD html."""
+    info = run.get("info", {}) or {}
+    data = run.get("data", {}) or {}
+    s_fg, s_bg = STATUS_COLORS.get(info.get("status", ""), ("#334155", "#E8EDF3"))
+
+    # data groups: key/value lists → flat dicts
+    metrics = _kv(data.get("metrics"))
+    params  = _kv(data.get("params"))
+
+    # outputs.model_outputs: [{'model_id': ..., 'step': ...}]
+    model_out = _first(run.get("outputs", {}).get("model_outputs"))
+    model = {"Model id": model_out.get("model_id", ""),
+             "Step": model_out.get("step", "")} if model_out else {}
+
+    # inputs.dataset_inputs: [{'dataset': {...}, 'tags': [...]}]
+    ds_input = _first(run.get("inputs", {}).get("dataset_inputs"))
+    ds = ds_input.get("dataset", {})
+    source = ds.get("source", "")
+    
+    url = extract_source_url(ds)
+     
+    dataset = {
+        "Name":        ds.get("name", ""),
+        "Digest":      ds.get("digest", ""),
+        "URI":         url,
+        "Schema":      _summarize_schema(ds.get("schema")),
+        "Context":     _kv(ds_input.get("tags")).get("mlflow.data.context", ""),
+    }
+    dataset = {k: v for k, v in dataset.items() if v}     # show only present fields
+
+    run_id = str(info.get("run_id") or info.get("run_uuid") or "—")
+    return RUN_CARD.format(
+        run_name=escape(str(info.get("run_name") or run_id)),
+        status=escape(str(info.get("status") or "UNKNOWN")),
+        s_fg=s_fg, s_bg=s_bg,
+        run_id=escape(run_id),
+        user_id=escape(str(info.get("user_id") or "—")),
+        duration=_duration(info),
+        metrics_rows=_rows(metrics),
+        params_rows=_rows(params),
+        model_rows=_rows(model, mono_keys=("model id",)),
+        dataset_rows=_rows(dataset, mono_keys=("digest",)),
     )
 
 
-def extract_template() -> str:
-    """
-    Extracts and returns the content of the HTML template file specified by TEMPLATE_PATH.
-    Returns:
-        str: The content of the HTML template file.
-    """
-    with open(TEMPLATE_PATH, "r", encoding="utf-8") as file:
-        template_content = file.read()
-    
-    return template_content
+def _summarize_schema(schema_str) -> str:
+    """MLflow stores schema as a JSON string → '5 columns' summary for the card."""
+    if not schema_str:
+        return ""
+    try:
+        cols = json.loads(schema_str).get("mlflow_colspec", [])
+        return f"{len(cols)} columns"
+    except (json.JSONDecodeError, TypeError):
+        return ""
+  
 
 
-def append_data_to_template(template: str, data:  dict) -> str:
+def render_document_html(state: dict) -> str:
     """
-    Appends the provided data to the HTML template by replacing placeholders with actual values.
-    Args:
-        template (str): The HTML template content.
-        data (TemplateResponse): The template response object containing the data to be inserted into the template.
-    Returns:
-        str: The updated HTML template with data inserted.
+    state: final graph state (query, generation, grading_result, experiment_id)
     """
-    for key, value in data.items():
-        placeholder = f"{{{{{key}}}}}"
-        template = template.replace(placeholder, str(value))
-    
-    return template
+    answer = state["generation"]
+    judge = state["grading_result"]
+
+    aggregate = state.get("aggregates", {})
+
+
+    answer = answer if answer else "No answer generated"
+    evidence_ids = state.get("evidence_ids", [])
+
+    v_label, v_fg, v_bg = VERDICTS.get(judge.verdict, VERDICTS["unsupported"])
+    note_text = VERDICT_NOTES.get(judge.verdict, "").format(
+        missing=escape(", ".join(judge.missing_evidence)))
+    note = f'<p class="note">{note_text}</p>' if note_text else ""
+
+    cards = []
+    if judge.related_run_ids:                                  
+      for eid in judge.related_run_ids:              
+                run_data = get_run_by_id(eid) or {}
+                run = run_data.get("run", {})
+                if run:
+                  cards.append(extract_run_info(run))
+    elif evidence_ids:                          
+      for eid in evidence_ids:
+        if eid in aggregate.get("runs", {}):
+            run_data = get_run_by_id(eid) or {}
+            run = run_data.get("run", {})
+            if run:
+                cards.append(extract_run_info(run))
+      
+        
+    legend = "\n".join(
+        f"<li><b>{name}</b>: {desc}</li>" for name, desc in VERDICT_LEGEND)
+
+    return PAGE.format(
+        experiment_id=escape(str(state["experiment_id"])),
+        timestamp=datetime.now().strftime("%Y-%m-%d %H:%M"),
+        version=PIPELINE_VERSION,
+        v_label=v_label, v_fg=v_fg, v_bg=v_bg,
+        query=escape(state["query"]),
+        response=escape(answer),
+        note=note,
+        cards="\n".join(cards) if cards
+              else '<p class="none">No specific runs cited in this response.</p>',
+        legend=legend,
+    )
 
 
 def generate_documentation(state: GraphState, output_dir: str, mimetype: str):
@@ -87,16 +191,18 @@ def generate_documentation(state: GraphState, output_dir: str, mimetype: str):
         output_dir (str): The directory where the generated documentation will be saved.
         mimetype (str): The MIME type of the documentation to be generated.
     """
-    template = extract_template()
-    print(f"Template extracted from {TEMPLATE_PATH}.")
+    # template = extract_template()
+    # print(f"Template extracted from {TEMPLATE_PATH}.")
 
-    data = extract_template_response(state)
-    documentation = append_data_to_template(template, data.model_dump())
+    # data = extract_template_response(state)
+    # documentation = append_data_to_template(template, data.model_dump())
 
-    base_dir = os.path.join(output_dir, f"experiment_{data.experiment_id}")
+    documentation = render_document_html(state)
+
+    base_dir = os.path.join(output_dir, f"experiment_{state['experiment_id']}")
     os.makedirs(base_dir, exist_ok=True)
 
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     output_path = os.path.join(base_dir, f"documentation_{timestamp}.{mimetype}")
 

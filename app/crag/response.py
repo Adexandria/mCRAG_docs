@@ -5,12 +5,12 @@ from app.config import SECTION
 VALID_VERDICTS = {"supported", "missing_evidence", "unsupported",
                   "inconsistent", "unresponsive", "data_insufficient"}
 
+
 SECTION = set(["summary", "performance", "configuration", "lineage", "metadata"])
 
 class JudgeResponse(BaseModel):
     verdict: str = Field(..., description="The verdict of the evaluation", validation_alias = AliasPath("verdict"))
     reason: str  = Field(..., description="A brief explanation of the verdict", validation_alias = AliasPath("reason"))
-    evidence_ids: list[str] | None = Field(default_factory=list, description="Evidence IDs relevant to the verdict", validation_alias = AliasPath("evidence_ids"))
     related_run_ids: list[str] | None = Field(default=None, description="Related run IDs", validation_alias = AliasPath("related_run_ids"))
     missing_evidence: list[str] | None = Field(default=None, description="Missing evidence IDs", validation_alias = AliasPath("missing_evidence"))
 
@@ -28,6 +28,7 @@ class JudgeResponse(BaseModel):
 
 class GenerateResponse(BaseModel):
     answer: str = Field(..., description="The generated answer", validation_alias = AliasPath("answer"))
+    evidence_ids: list[str] | None = Field(default_factory=list, description="Evidence run IDs used to generate the answer", validation_alias = AliasPath("evidence_ids"))
 
 class RewriteQueryResponse(RootModel[dict[str, list[str]]]):
 

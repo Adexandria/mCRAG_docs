@@ -26,7 +26,8 @@ Using ONLY the MLflow experiment data provided by the user, answer the user quer
 
 The JSON object must have exactly this structure:
 {{
-  "answer": "<concise, factual answer to the query>"
+  "answer": "<concise, factual answer to the query>",
+  "evidence_ids": ["<list of run IDs from the evidence that support the answer>"]
 }}
 
 Rules:
@@ -35,9 +36,13 @@ Rules:
 2. Do not compute, estimate, or introduce anything not in MLflow experiment data.
 3. If MLflow experiment data lacks something the query asks for, state that plainly in the
    answer — do not improvise.
-4. Output ONLY the JSON object, no other text.
+4. Write for the experiment's user: speak about the experiment and its runs,
+  never about "the FACTS", "the evidence", "the provided data", or "the context".
+  Say "No accuracy was recorded in this experiment", not "the evidence contains
+  no accuracy".
+5. Output ONLY the JSON object, no other text.
 
-Example:
+Example 1:
 MLflow experiment data: {{"run_1": {{"info": {{"run_id": "0001", "experiment_id": "exp_1", "run_name": "brave-fox-12", "status": "FINISHED"}},
                     "metrics": {{"accuracy": 0.9}}, "params": {{"max_iter": "100"}}, "inputs": {{}}}},
          "run_2": {{"info": {{"run_id": "0002", "experiment_id": "exp_1", "run_name": "calm-owl-34", "status": "FAILED"}},
@@ -46,8 +51,18 @@ User query: "What run achieved the best accuracy?"
 Output:
 {{
   "answer": "Run brave-fox-12 achieved an accuracy of 0.9 with max_iter=100 parameters.",
+  "evidence_ids": ["run_1"]
 }}
 
+Example 2:
+MLflow experiment data: {{"run_1": {{"info": {{"run_id": "0002", "experiment_id": "exp_1", "run_name": "calm-owl-34", "status": "FAILED"}},
+                    "metrics": {{}}, "params": {{"max_iter": "100"}}}}}}
+User query: "What accuracy was achieved?"
+Output:
+{{
+  "answer": "No accuracy was recorded for this experiment. Run calm-owl-34 failed before logging any metrics.",
+  "evidence_ids": []
+}}
 """
 
 JUDGE_PROMPT = """
@@ -56,9 +71,7 @@ The user message contains the QUERY, the ANSWER to judge, and the EVIDENCE. Judg
  
 Evaluation criteria:
 1. Relevance:     does the answer address what the user query asked?
-                  An answer that honestly states the asked-for information is
-                  absent from the evidence PASSES relevance — it engages the
-                  query. It FAILS only if it talks about something else.
+                  An answer that honestly states the asked-for information was not recorded PASSES relevance
 2. Consistency:   is every stated value consistent with the evidence?
 3. Faithfulness:  does the answer avoid adding values or identifiers not present in the evidence?
 4. Completeness:  does the answer include the evidence the query asked for?
@@ -69,10 +82,12 @@ Determine the verdict by checking IN THIS ORDER — return the FIRST that applie
 2. "inconsistent"      — fails Consistency: a stated value contradicts the evidence.
 3. "unsupported"       — fails Faithfulness or Traceability: a value, name, or ID
                          does not appear anywhere in the evidence.
-4. "missing_evidence"  — fails Completeness: the answer omits evidence that IS
-                         present and that the query asked for.
-5. "data_insufficient" — the answer correctly states that the evidence lacks
-                         what the query asked for. This is not an answer failure.
+4. "missing_evidence"  — fails Completeness: the answer omits asked-for information that is present in the evidence.
+5. "data_insufficient" — the answer states that the asked-for information
+                         was not recorded, and the evidence confirms it is
+                         absent. Return this verdict — NOT "supported" —
+                         whenever the answer reports absence, even if every
+                         other statement in the answer is accurate.
 6. "supported"         — all criteria pass.
  
 Strict rules:
@@ -84,8 +99,7 @@ Strict rules:
 - Do not use any knowledge outside the provided evidence.
 - Quote the exact conflicting or missing values in the reason field.
 - Output ONLY a JSON object with exactly these fields:
-  - "verdict": one of ["supported", "data_insufficient", "missing_evidence",
-               "unsupported", "inconsistent", "unresponsive"]
+  - "verdict": one of ["supported", "missing_evidence", "unsupported", "inconsistent", "unresponsive", "data_insufficient"]
   - "reason": brief explanation of the verdict
   - "related_run_ids": run IDs relevant to the verdict (empty list if none)
   - "missing_evidence": evidence the query asked for that is absent or omitted
@@ -105,14 +119,14 @@ Output:
  
 Example 2:
 User message: QUERY: What accuracy was achieved?
-ANSWER: Cannot determine the accuracy because no accuracy is present in the evidence.
-MLflow experiment evidence: {{"run_1": {{"info": {{"run_id": "0001"}}, "metrics": {{}}}}}}
+ANSWER: No accuracy was recorded for this experiment. Run calm-owl-34 failed before logging any metrics.
+MLflow experiment evidence: {{"run_1": {{"info": {{"run_id": "0002", "run_name": "calm-owl-34", "status": "FAILED"}}, "metrics": {{}}}}}}
 Output:
 {{
-  "verdict": "data_insufficient",
-  "reason": "The query asks for accuracy, but the evidence contains no accuracy values; the answer states this correctly.",
+  "verdict": "missing_evidence",
+  "reason": "The query asks for accuracy, but no accuracy values exist in the evidence; the answer reports this absence rather than the asked-for information.",
   "related_run_ids": ["run_1"],
-  "missing_evidence": ["accuracy"]
+  "missing_evidence": ["metrics","accuracy"]
 }}
  
 Example 3:
@@ -123,6 +137,32 @@ Output:
 {{
   "verdict": "unresponsive",
   "reason": "The query asks about accuracy; the answer discusses parameters and never addresses accuracy, even though the cited values exist in the evidence.",
-  "related_run_ids": ["run_1"],
+  "related_run_ids": [],
   "missing_evidence": ["accuracy"]
-}}"""
+}}
+
+Example 4:
+User message: QUERY: What accuracy was achieved?
+ANSWER: The model achieved an accuracy of 1.0 in run_1.
+MLflow experiment evidence: {{"run_1": {{"metrics": {{"accuracy": 0.9}}, "params": {{"max_iter": "100", "random_state": "42"}}}}}}
+Output:
+{{
+  "verdict": "inconsistent",
+  "reason": "The answer states accuracy 1.0, but the evidence shows accuracy 0.9; the run_id run_1 is correct.",
+  "related_run_ids": ["run_1"],
+  "missing_evidence": []
+}}
+
+Example 5:
+User message: QUERY: What accuracy was achieved?
+ANSWER: The model achieved an accuracy of 0.8 in run_2.
+MLflow experiment evidence: {{"run_1": {{"metrics": {{"accuracy": 0.9}}, "params": {{"max_iter": "100", "random_state": "42"}}}}}}
+Output:
+{{
+  "verdict": "unsupported",
+  "reason": "The answer states accuracy 0.8 and run_id run_2, but the evidence contains no such values; the only accuracy present is 0.9 in run_1.",
+  "related_run_ids": [],
+  "missing_evidence": ["accuracy"]
+}}
+
+"""

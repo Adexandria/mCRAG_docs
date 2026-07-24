@@ -230,7 +230,7 @@ def generate(state):
 
     generated_query = generate_report(query, facts)
 
-    return {"generation": generated_query.answer, "query": query, "aggregates": aggregates}
+    return {"generation": generated_query.answer,"evidence_ids": generated_query.evidence_ids, "query": query, "aggregates": aggregates}
 
 def grade_answer(state):
     """
@@ -276,7 +276,7 @@ def decide_after_judging(state):
         print("---DECISION: PROCEED TO END---")
         return "END"
     
-    if proceed == "inconsistent":
+    if proceed == "inconsistent" or proceed == "unresponsive":
         return "generate"
 
     print("---DECISION: GENERATED ANSWER IS NOT SUFFICIENT, REGENERATE QUERY---")

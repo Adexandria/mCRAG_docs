@@ -7,13 +7,13 @@ from app.docs.response import MIMETYPE
 
 from app.config import MEDIA_PATH
 
+
 inputs = {
     "query": "Which attempt gave the best result?",
     "experiment_id": "1",
      "retry_count": 0
 }
 app = corrective_workflow()
-final_state = app.invoke(inputs)
 
 final_state = None
 for mode, out in app.stream(inputs, stream_mode=["updates", "values"]):
@@ -24,8 +24,10 @@ for mode, out in app.stream(inputs, stream_mode=["updates", "values"]):
         final_state = out      
 
 
-# print("Generating documentation...")
+print("Generating documentation...")
 generate_documentation(final_state, MEDIA_PATH, MIMETYPE.HTML)
+
+
 
 
 

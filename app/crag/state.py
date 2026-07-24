@@ -42,6 +42,7 @@ class GraphState(TypedDict):
     section_queries_used: dict[str, str]
 
     generation : str
+    evidence_ids: list[str] | None
     aggregates: dict
 
     grading_result: JudgeResponse                        
