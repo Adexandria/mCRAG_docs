@@ -1,4 +1,4 @@
-from typing import List, TypedDict, Any
+from typing import List, TypedDict
 from langchain_core.documents import Document
 
 from app.crag.response import JudgeResponse

@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 
@@ -79,10 +80,32 @@ def split_run_chunks(run_data, splitter):
         Document(page_content=str(chunk), metadata={**metadata, "chunk_index": i}) 
         for i, chunk in enumerate(flattened_chunks)
     ]
-
     
 if __name__ == "__main__":
-    experiment_name = "Iris_Classification"
-    runs_data = get_all_runs_by_experiment_name(experiment_name)
+    argument_parser = argparse.ArgumentParser(description="Ingest MLflow run data into Chroma vector store.")
+
+    argument_parser.add_argument("--experiment_name", type=str, required=False, help="Name of the experiment to ingest.")
+    argument_parser.add_argument("--experiment_id", type=str, required=False, help="ID of the experiment to ingest. If not provided, the experiment_name will be used to fetch the ID.")
+
+    args = argument_parser.parse_args()
+    experiment_name = args.experiment_name
+    experiment_id = args.experiment_id
+
+    if not experiment_id and not experiment_name:
+        raise ValueError("Either --experiment_name or --experiment_id must be provided.")
+
+    print(f"Fetching runs for experiment: {experiment_name if experiment_name else experiment_id}")
+    if experiment_id:
+        runs_data = get_all_runs_by_experiment_name(experiment_id, isId=True)
+    else:
+        runs_data = get_all_runs_by_experiment_name(experiment_name, isId=False)
+
+    print(f"Number of runs fetched: {len(runs_data)}")
+
+    print("Splitting runs into chunks and extracting keywords...")
     flattened_chunks = split_chunks(runs_data)
+
+    print("Saving chunks to Chroma vector store...")
     save_to_chroma(flattened_chunks)
+
+    print(f"Successfully ingested {len(flattened_chunks)} chunks into the Chroma vector store.")

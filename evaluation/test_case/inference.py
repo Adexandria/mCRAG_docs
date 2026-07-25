@@ -1,3 +1,4 @@
+import os
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score
 from sklearn.model_selection import train_test_split
@@ -5,8 +6,8 @@ import mlflow
 from sklearn.ensemble import RandomForestClassifier
 import pandas as pd
 import mlflow.data
-import joblib
 
+tracking_uri = os.environ.get("ML_FLOW_tRACKING_URI", "http://localhost:5000")
 
 def log_model(X_train, y_train, X_test, y_test, dataset):
     with mlflow.start_run():
@@ -147,6 +148,7 @@ def log_model_info_logistic_regression():
 def inference():
     # Load the iris dataset
     dataset_url = "https://raw.githubusercontent.com/mwaskom/seaborn-data/master/iris.csv"
+
     iris = pd.read_csv(dataset_url)
     X = iris.drop(columns=["species"], axis=1)
     y = iris["species"]
@@ -163,7 +165,7 @@ def inference():
 
     Logistic_X_train, Logistic_X_test, Logistic_y_train, Logistic_y_test = train_test_split(log_X, log_y, test_size=0.2, random_state=42)
 
-    mlflow.set_tracking_uri("http://localhost:5000")
+    mlflow.set_tracking_uri(tracking_uri)
 
     mlflow.set_experiment("Iris_Classification")
 

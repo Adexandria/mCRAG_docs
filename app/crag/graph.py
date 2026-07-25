@@ -1,4 +1,15 @@
-from app.crag.nodes import generate, retrieval, transform_query, aggregate_results,grade_structure,decide_after_judging,retrieve_transformed, decide_to_generate,grade_answer, decide_to_generate
+from app.crag.nodes import (
+    generate, 
+    retrieval,
+    transform_query, 
+    aggregate_results,
+    grade_structure,
+    decide_after_judging,
+    retrieve_transformed, 
+    decide_to_generate,
+    grade_answer, 
+    decide_to_generate
+)
 from app.crag.state import GraphState
 from langgraph.graph import END, StateGraph, START
 

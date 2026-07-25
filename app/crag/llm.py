@@ -30,7 +30,7 @@ def generate_section():
         raise ValueError(f"Corpus vocabulary is empty or not found at {CORPUS_VOCAB_PATH}. Please ensure the file exists and contains valid JSON data.")
     corpus_vocab = {}
     for section, fields in SECTION.items():
-        if section is "info":
+        if section == "info":
             continue  # Skip the "info" section as it is not a valid section for query rewriting
         vocab_set = set()
         for field in fields.split():
@@ -151,13 +151,4 @@ def grade_report(query: str, answer: str, aggregates: str) -> JudgeResponse:
             missing_evidence=[]
         )
 
-if __name__ == "__main__":
-    test_query = "What are the hyperparameters and metrics for the latest runs?" ## change this to represent the examples of queries you want to test
-
-    rewritten = rewrite_query(test_query)
-
-    print("Original Query:", test_query)
-
-    for section in rewritten:
-        print("Rewritten Query Section:", rewritten[section])
     

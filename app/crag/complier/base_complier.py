@@ -1,3 +1,5 @@
+import argparse
+
 from app.crag.graph import base_workflow
 
 from pprint import pprint
@@ -7,21 +9,41 @@ from app.docs.response import MIMETYPE
 
 from app.config import MEDIA_PATH
 
-inputs = {
-    "query": "Which attempt gave the best result?",
-    "experiment_id": "1",
-     "retry_count": 0
-}
-app = base_workflow()
-
-final_state = None
-for mode, out in app.stream(inputs, stream_mode=["updates", "values"]):
-    if mode == "updates":
-        for node, delta in out.items():
-            pprint(f"Node '{node}':"); pprint(delta, indent=2)
-    else:
-        final_state = out      
 
 
-# print("Generating documentation...")
-generate_documentation(final_state, MEDIA_PATH, MIMETYPE.HTML)
+def run_workflow(query: str, experiment_id: str, media_path: str = MEDIA_PATH, mimetype: str = MIMETYPE.HTML):
+    """
+    Run the workflow with the given query and experiment ID.
+    """
+    inputs = {
+        "query": query,
+        "experiment_id": experiment_id,
+        "retry_count": 0
+    }
+    app = base_workflow()
+
+    final_state = None
+    for mode, out in app.stream(inputs, stream_mode=["updates", "values"]):
+        if mode == "updates":
+            for node, delta in out.items():
+                pprint(f"Node '{node}':"); pprint(delta, indent=2)
+        else:
+            final_state = out      
+
+    generate_documentation(final_state, media_path, mimetype)
+
+if __name__ == "__main__":
+    argument_parser = argparse.ArgumentParser(description="Run the workflow with a query and experiment ID.")
+    argument_parser.add_argument("--query", required=True, help="The query to run the workflow with.")
+    argument_parser.add_argument("--experiment-id", required=True, help="The experiment ID to run the workflow with.")
+    argument_parser.add_argument("--media-path", default=MEDIA_PATH, help="The path to the media directory.")
+    argument_parser.add_argument("--mimetype", default=MIMETYPE.HTML, help="The MIME type for the generated documentation.", choices=[MIMETYPE.HTML, MIMETYPE.PDF, MIMETYPE.MARKDOWN])
+
+    args = argument_parser.parse_args()
+
+    run_workflow(
+        query=args.query,
+        experiment_id=args.experiment_id,
+        media_path=args.media_path,
+        mimetype=args.mimetype
+    )

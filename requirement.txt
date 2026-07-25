@@ -6,4 +6,3 @@ sentence-transformers
 langgraph
 pydantic
 weasyprint
-beautifulsoup4

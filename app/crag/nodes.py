@@ -132,6 +132,7 @@ def retrieve_transformed(state):
         state (dict): Updated graph state with retrieved documents, documents by section, and the structured query used.
     """
     print("---Retrieve Transformed---")
+
     experiment_id = state["experiment_id"]
 
     query = state["section_queries"]
@@ -241,7 +242,7 @@ def grade_answer(state):
         state (dict): Updated graph state with the grading result.
     """
 
-    print("---Grade Answer---")
+    print("---Grade Report---")
 
     query = state["query"]
 
@@ -264,7 +265,7 @@ def decide_after_judging(state):
     Returns:
         str: "grade_answer" if the grading result indicates to proceed, otherwise "transform_query".
     """
-    print("---Decide to Transform Query---")
+    print("---Decide after Judging---")
 
     grading_result: JudgeResponse = state["grading_result"]
 
@@ -277,6 +278,7 @@ def decide_after_judging(state):
         return "END"
     
     if proceed == "inconsistent" or proceed == "unresponsive":
+        print("---DECISION: GENERATED ANSWER IS INCONSISTENT OR UNRESPONSIVE, REGENERATE QUERY---")
         return "generate"
 
     print("---DECISION: GENERATED ANSWER IS NOT SUFFICIENT, REGENERATE QUERY---")
@@ -327,73 +329,3 @@ def extract_all(docs):
                 result[group][path.removeprefix(matched)] = value
                 break
     return result
-
-if __name__ == "__main__":
-   
-    state = {
-        "query": "Extract the run with the best metric?",
-        "experiment_id": "2"
-    }
-    results = retrieval(state)
-    print(len(results["documents"]), "documents retrieved.")
-    grade_state = {
-        "query": state["query"],
-        "experiment_id": state["experiment_id"],
-        "documents": results["documents"]
-    }
-
-    grading_results = grade_structure(grade_state)
-
-    print("Grading results:", grading_results["grading_report"])
-
-    print("Grading completed.")
-    aggragate_state = {
-        "query": state["query"],
-        "experiment_id": state["experiment_id"],
-        "documents": grading_results["documents"]
-    }
-
-    aggregated_results = aggregate_results(aggragate_state)
-
-    print("Aggregated results:", aggregated_results["aggregates"])
-
-    print("Aggregated completed.")
-    
-    generate_state = {
-        "query": state["query"],
-        "experiment_id": state["experiment_id"],
-        "aggregates": aggregated_results["aggregates"]
-    }
-
-    # generated_results = generate(generate_state)
-
-    # print("Generated results:", generated_results["generation"])
-
-    # print("Generation completed.")
-
-    graded_answer_state = {
-        "query": state["query"],
-        "experiment_id": state["experiment_id"],
-        "aggregates": aggregated_results["aggregates"],
-        "generation": "Run 992435a3093c4c508ea95bbaad49a2c2 achieved the best metric with an accuracy of 1.0."
-    }
-
-    grading_results = grade_answer(graded_answer_state)
-
-    print("Grading of generated answer completed.")
-
-    print("Final Grading Result:", grading_results["grading_result"])
-    #print("Generated Query:", generated_results["generated_query"])
-
-
-
-
-
-
-    # transformed_results = transform_query(state)
-    # print("Transformed Query Results:")
-    # for doc in transformed_results["documents"]:
-    #    print(doc)
-
-
-    

@@ -91,26 +91,35 @@ def get_experiment_by_name(experiment_name):
         raise Exception(f"Error occurred while fetching experiment: {e}")
 
 
-def get_all_runs_by_experiment_name(experiment_name):
+def get_all_runs_by_experiment_name(experiment_name, isId=False):
     """
     Get all runs by experiment name.
 
     Args:
         experiment_name (str): The name of the experiment.
+        isId (bool): Whether the experiment_name is an ID or a name. If True, the experiment_name is treated as an ID.
 
     Returns:
         runs_data (list): A list of runs data.
     """
     try:
-        experiment_id = get_experiment_by_name(experiment_name)
-        print(f"Experiment ID for '{experiment_name}': {experiment_id}")
-        return list(fetch_all_runs_by_experiment_id(experiment_id))
+        if isId:
+            experiment = experiment_name
+        else:
+            experiment = get_experiment_by_name(experiment_name)
+            print(f"Experiment for '{experiment_name}': {experiment}")
+
+        return list(fetch_all_runs_by_experiment_id(experiment))
         
     except Exception as e:
         raise Exception(f"Error occurred while fetching all runs: {e}")
-    
+
+
 ## Extract model data by model id
 def get_model_by_id(model_id):
+    """
+    Get the model by ID.
+    """
     try:
         url = f"{tracking_uri}/api/2.0/mlflow/logged-models/{model_id}"
         response = requests.get(url, timeout=TIMEOUT_S)
@@ -123,6 +132,7 @@ def get_model_by_id(model_id):
     except Exception as e:
         raise Exception(f"Error occurred while fetching model: {e}")
 
+## Extract run data by run id
 def get_run_by_id(run_id):
     """
     Get the run by ID.
@@ -142,7 +152,6 @@ def get_run_by_id(run_id):
             raise Exception(f"Failed to get run")
 
         run_data = response.json()       
-        print(f"Run data: {run_data}")
         return run_data 
 
     except Exception as e:

@@ -1,4 +1,3 @@
-
 PIPELINE_VERSION = "v1.0"
 
 # ── verdict palette (judge) ──────────────────────────────────────────
