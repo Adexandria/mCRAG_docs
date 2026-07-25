@@ -20,18 +20,16 @@ def run_workflow(query: str, experiment_id: str, media_path: str = MEDIA_PATH, m
         "experiment_id": experiment_id,
         "retry_count": 0
     }
+    print(f"Running base workflow with query: '{query}' and experiment_id: '{experiment_id}'")
+
     app = base_workflow()
 
-    final_state = None
-    for mode, out in app.stream(inputs, stream_mode=["updates", "values"]):
-        if mode == "updates":
-            for node, delta in out.items():
-                pprint(f"Node :'{node}'")
-        else:
-            final_state = out      
+    final_state = app.invoke(inputs)    
 
     print("Base Workflow completed. Generating documentation...")
+
     generate_documentation(final_state, media_path, mimetype)
+    
     print("Documentation generated successfully.")
 
 if __name__ == "__main__":
