@@ -23,11 +23,12 @@ def run_corrective_workflow(query: str, experiment_id: str, media_path: str = ME
     for mode, out in app.stream(inputs, stream_mode=["updates", "values"]):
         if mode == "updates":
             for node, delta in out.items():
-                pprint(f"Node '{node}':"); pprint(delta, indent=2)
+                pprint(f"Node :'{node}'")
         else:
             final_state = out      
-
+    print("Corrective Workflow completed. Generating documentation...")
     generate_documentation(final_state, media_path, mimetype)
+    print("Documentation generated successfully.")
 
 
 if __name__ == "__main__":

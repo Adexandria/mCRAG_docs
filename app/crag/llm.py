@@ -30,11 +30,10 @@ def generate_section():
         raise ValueError(f"Corpus vocabulary is empty or not found at {CORPUS_VOCAB_PATH}. Please ensure the file exists and contains valid JSON data.")
     corpus_vocab = {}
     for section, fields in SECTION.items():
-        if section == "info":
-            continue  # Skip the "info" section as it is not a valid section for query rewriting
         vocab_set = set()
         for field in fields.split():
-            print(f"Processing section '{section}', field '{field}'")
+            if section == "info":
+                continue  
             if field in vocab:
                 vocab_set.update(vocab[field])
         corpus_vocab[section] = vocab_set
@@ -59,7 +58,6 @@ def rewrite_query(query: str) -> dict[str, str]:
         messages=[{"role": "user", "content": query}],
     )
     response_text = response.content[0].text
-    print(f"[rewrite_query] RAW OUTPUT:\n{response_text!r}\n")
 
     rewritten = RewriteQueryResponse({})
     m = re.search(r"\{.*\}", response_text, re.DOTALL)
@@ -130,7 +128,6 @@ def grade_report(query: str, answer: str, aggregates: str) -> JudgeResponse:
         messages=messages,
     )
     response_text = response.content[0].text
-    print(f"[grade_response] RAW OUTPUT:\n{response_text!r}\n")  
 
     m = re.search(r"\{.*\}", response_text, re.DOTALL)   
     if not m:
