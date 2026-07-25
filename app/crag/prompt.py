@@ -71,7 +71,7 @@ The user message contains the QUERY, the ANSWER to judge, and the EVIDENCE. Judg
  
 Evaluation criteria:
 1. Relevance:     does the answer address what the user query asked?
-                  An answer that honestly states the asked-for information was not recorded PASSES relevance
+                  An answer that honestly states the asked-for information was not recorded PASSES relevance.
 2. Consistency:   is every stated value consistent with the evidence?
 3. Faithfulness:  does the answer avoid adding values or identifiers not present in the evidence?
 4. Completeness:  does the answer include the evidence the query asked for?
@@ -79,90 +79,58 @@ Evaluation criteria:
  
 Determine the verdict by checking IN THIS ORDER — return the FIRST that applies:
 1. "unresponsive"      — fails Relevance: the answer does not address the query.
-2. "inconsistent"      — fails Consistency: a stated value contradicts the evidence.
-3. "unsupported"       — fails Faithfulness or Traceability: a value, name, or ID
-                         does not appear anywhere in the evidence.
-4. "missing_evidence"  — fails Completeness: the answer omits asked-for information that is present in the evidence.
-5. "data_insufficient" — the answer states that the asked-for information
-                         was not recorded, and the evidence confirms it is
-                         absent. Return this verdict — NOT "supported" —
-                         whenever the answer reports absence, even if every
-                         other statement in the answer is accurate.
-6. "supported"         — all criteria pass.
+2. "data_insufficient" — the answer correctly states that the evidence lacks what the query explicitly asked for (e.g., missing metrics or properties). Focus strictly on whether the specific information requested by the query is absent from the evidence. If the query did not ask for run IDs or run names, do not penalize or trigger verdicts based on their absence; judge solely on whether the requested target data is missing.
+3. "inconsistent"      — fails Consistency: a stated value contradicts the evidence.
+4. "unsupported"       — fails Faithfulness or Traceability: a value, name, or ID does not appear anywhere in the evidence.
+5. "missing_evidence"  — fails Completeness: the answer omits asked-for information that is present in the evidence and includes any missing values.
+6. "supported"         — all checks above pass: the answer addresses the query, every value/metric it states appears in the evidence, the requested data actually exists in the evidence, and it does not have any missing evidence.
  
 Strict rules:
-- The answer MAY draw simple conclusions from the evidence (e.g. identifying
-  the best or latest run). Judge such conclusions ONLY by whether the values
-  and identifiers they cite exist in the evidence.
-- Do NOT perform comparisons or calculations yourself. Do not determine which
-  run is best or latest. Only check whether stated values exist in the evidence.
+- OVERRIDE RULE: If the query asks for performance metrics (like accuracy, loss, score) that were not logged or recorded, and the answer reports that no metrics/results were recorded, the verdict MUST ALWAYS be "data_insufficient". 
+- If the query does NOT ask for run IDs or run names, evaluate `data_insufficient` purely based on the absence of the requested target information (e.g., metrics), regardless of whether run names or IDs are mentioned in the answer.
+- The answer MAY draw simple conclusions from the evidence (e.g. identifying the best or latest run). Judge such conclusions ONLY by whether the values and identifiers they cite exist in the evidence.
+- Do NOT perform comparisons or calculations yourself. Do not determine which run is best or latest. Only check whether stated values exist in the evidence.
 - Do not use any knowledge outside the provided evidence.
 - Quote the exact conflicting or missing values in the reason field.
 - Output ONLY a JSON object with exactly these fields:
   - "verdict": one of ["supported", "missing_evidence", "unsupported", "inconsistent", "unresponsive", "data_insufficient"]
   - "reason": brief explanation of the verdict
   - "related_run_ids": run IDs relevant to the verdict (empty list if none)
-  - "missing_evidence": evidence the query asked for that is absent or omitted
-               (empty list if none)
+  - "missing_evidence": evidence the query asked for that is absent or omitted (empty list if none)
  
 Example 1:
 User message: QUERY: What accuracy was achieved?
 ANSWER: The model achieved an accuracy of 0.9 in run_1.
-MLflow experiment evidence: {{"run_1": {{"metrics": {{"accuracy": 0.9}}}}}}
+MLflow experiment evidence: {"run_1": {"metrics": {"accuracy": 0.9}}}
 Output:
-{{
+{
   "verdict": "supported",
-  "reason": "The accuracy 0.9 and run_1 both appear in the evidence, and the query is answered.",
+  "reason": "The accuracy 0.9 and run_1 both appear in the evidence, and the query is answered with existing data.",
   "related_run_ids": ["run_1"],
   "missing_evidence": []
-}}
+}
  
 Example 2:
 User message: QUERY: What accuracy was achieved?
-ANSWER: No accuracy was recorded for this experiment. Run calm-owl-34 failed before logging any metrics.
-MLflow experiment evidence: {{"run_1": {{"info": {{"run_id": "0002", "run_name": "calm-owl-34", "status": "FAILED"}}, "metrics": {{}}}}}}
+ANSWER: No results were recorded in this experiment. Two runs finished successfully (vaunted-eel-701 and flawless-fox-692), but neither logged any metrics to compare performance.
+MLflow experiment evidence: {"vaunted-eel-701": {"metrics": {}}, "flawless-fox-692": {"metrics": {}}}
 Output:
-{{
-  "verdict": "missing_evidence",
-  "reason": "The query asks for accuracy, but no accuracy values exist in the evidence; the answer reports this absence rather than the asked-for information.",
-  "related_run_ids": ["run_1"],
-  "missing_evidence": ["metrics","accuracy"]
-}}
+{
+  "verdict": "data_insufficient",
+  "reason": "The query asks for accuracy, but the evidence contains no metric values; the answer correctly notes that no metrics were logged.",
+  "related_run_ids": ["vaunted-eel-701", "flawless-fox-692"],
+  "missing_evidence": ["accuracy"]
+}
  
 Example 3:
 User message: QUERY: What accuracy was achieved?
 ANSWER: The experiment used max_iter=100 and random_state=42 across its runs.
-MLflow experiment evidence: {{"run_1": {{"metrics": {{"accuracy": 0.9}}, "params": {{"max_iter": "100", "random_state": "42"}}}}}}
+MLflow experiment evidence: {"run_1": {"metrics": {"accuracy": 0.9}, "params": {"max_iter": "100", "random_state": "42"}}}
 Output:
-{{
+{
   "verdict": "unresponsive",
   "reason": "The query asks about accuracy; the answer discusses parameters and never addresses accuracy, even though the cited values exist in the evidence.",
   "related_run_ids": [],
   "missing_evidence": ["accuracy"]
-}}
-
-Example 4:
-User message: QUERY: What accuracy was achieved?
-ANSWER: The model achieved an accuracy of 1.0 in run_1.
-MLflow experiment evidence: {{"run_1": {{"metrics": {{"accuracy": 0.9}}, "params": {{"max_iter": "100", "random_state": "42"}}}}}}
-Output:
-{{
-  "verdict": "inconsistent",
-  "reason": "The answer states accuracy 1.0, but the evidence shows accuracy 0.9; the run_id run_1 is correct.",
-  "related_run_ids": ["run_1"],
-  "missing_evidence": []
-}}
-
-Example 5:
-User message: QUERY: What accuracy was achieved?
-ANSWER: The model achieved an accuracy of 0.8 in run_2.
-MLflow experiment evidence: {{"run_1": {{"metrics": {{"accuracy": 0.9}}, "params": {{"max_iter": "100", "random_state": "42"}}}}}}
-Output:
-{{
-  "verdict": "unsupported",
-  "reason": "The answer states accuracy 0.8 and run_id run_2, but the evidence contains no such values; the only accuracy present is 0.9 in run_1.",
-  "related_run_ids": [],
-  "missing_evidence": ["accuracy"]
-}}
-
+}
 """

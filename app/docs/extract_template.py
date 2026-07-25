@@ -1,5 +1,7 @@
 import os
 
+from fastapi import requests
+from numpy import int64
 from weasyprint import HTML
 from app.crag.state import GraphState
 from app.docs.response import MIMETYPE
@@ -11,8 +13,8 @@ from datetime import datetime
 from html import escape
 
 import json
-from app.retriever.extract_data import get_run_by_id
-from template.doc_template import PAGE, RUN_CARD, VERDICTS, VERDICT_NOTES, VERDICT_LEGEND, STATUS_COLORS, PIPELINE_VERSION
+from app.retriever.extract_data import get_model_by_id, get_run_by_id
+from template.doc_template import MODEL_STATUS_COLORS, PAGE, RUN_CARD, VERDICTS, VERDICT_NOTES, VERDICT_LEGEND, STATUS_COLORS, PIPELINE_VERSION, LIFECYCLE_COLORS
 
 
 def _duration(info: dict) -> str:
@@ -62,7 +64,7 @@ def _first(lst: list) -> dict:
     return (lst or [{}])[0] or {}
 
 
-def extract_source_url(ds: dict) -> str:
+def _extract_source_url(ds: dict) -> str:
     """MLflow /inputs/dataset_inputs shape → dataset source URL string."""
     source = ds.get("source", "")
     if not source:
@@ -74,27 +76,94 @@ def extract_source_url(ds: dict) -> str:
     
     return source.get("url", "")
 
-def extract_run_info(run: dict) -> str:
+def _convert_timestamp_to_datetime(timestamp: int) -> str:
+    return datetime.fromtimestamp(timestamp/1000).strftime("%Y-%m-%d %H:%M:%S") if timestamp else "—"
+
+def _extract_model_version(tags: dict) -> str:
+    raw = tags.get("mlflow.modelVersions", "")
+    if not raw:
+        return ""
+    try:
+        versions = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return ""
+    if not versions:
+        return ""
+    v = versions[0]                          
+    name = v.get("name", "")
+    version = v.get("version", "")
+    if name and version:
+        return f"{name} version {version}"
+    return name or (f"version {version}" if version else "")        
+
+def _model_blocks(run: dict) -> str:
+    """One block per model_output on this run, each with its own fetched
+    details (name, status, registration) and its own fallback on fetch failure."""
+    outputs = run.get("outputs", {}).get("model_outputs", []) or []
+    if not outputs:
+        return '<div class="none">none recorded</div>'
+
+    blocks = []
+    for mo in outputs:
+        model_id = mo.get("model_id", "")
+        rows = {"Model id": model_id, "Step": mo.get("step", "")}
+
+        model_details = get_model_by_id(model_id) if model_id else {}
+
+        info = ((model_details or {}).get("model", {}).get("info", {}))
+        status_chip = ""
+        if info:
+            rows["Name"] = info.get("name", "")
+            status = str(info.get("status", "")).removeprefix("LOGGED_MODEL_")
+            if status:
+                s_fg, s_bg = MODEL_STATUS_COLORS.get(status, ("#5A6472", "#F7F8FA"))
+                status_chip = (f'<span class="chip" style="color:{s_fg};'
+                              f'background:{s_bg}">{escape(status)}</span>')
+            rows["Artifact URI"] = info.get("artifact_uri", "")
+            rows["Created at"] = _convert_timestamp_to_datetime(int(info.get("creation_timestamp_ms")))
+            rows["Last updated at"] = _convert_timestamp_to_datetime(int(info.get("last_updated_timestamp_ms")))
+            regs = info.get("tags") or []
+            if regs:
+                rows["Registered as"] = _extract_model_version(_kv(regs))
+
+        rows = {k: v for k, v in rows.items() if v}
+        rows_out = []
+        for k, v in rows.items():
+            cls = ' class="mono"' if k == "Model id" else ""
+            rows_out.append(f'<tr><td>{escape(str(k))}</td><td{cls}>{escape(str(v))}</td></tr>')
+        row_html = "\n".join(rows_out)
+        if status_chip:
+            row_html += f'<tr><td>Status</td><td>{status_chip}</td></tr>'
+        blocks.append(f'<table class="model-block">{row_html}</table>')
+
+    return "\n".join(blocks)
+
+def _extract_run_info(run: dict) -> str:
     """One run (raw MLflow /runs/get shape) → rendered RUN_CARD html."""
     info = run.get("info", {}) or {}
     data = run.get("data", {}) or {}
-    s_fg, s_bg = STATUS_COLORS.get(info.get("status", ""), ("#334155", "#E8EDF3"))
 
-    # data groups: key/value lists → flat dicts
+    status = info.get("status", "UNKNOWN")
+
+    lifecycle_stage = info.get("lifecycle_stage", "UNKNOWN")
+    
+    s_fg, s_bg = STATUS_COLORS.get(status, ("#334155", "#E8EDF3"))
+
+    l_fg, l_bg = LIFECYCLE_COLORS.get(lifecycle_stage, ("#334155", "#E8EDF3"))
+
     metrics = _kv(data.get("metrics"))
     params  = _kv(data.get("params"))
 
-    # outputs.model_outputs: [{'model_id': ..., 'step': ...}]
-    model_out = _first(run.get("outputs", {}).get("model_outputs"))
-    model = {"Model id": model_out.get("model_id", ""),
-             "Step": model_out.get("step", "")} if model_out else {}
-
-    # inputs.dataset_inputs: [{'dataset': {...}, 'tags': [...]}]
     ds_input = _first(run.get("inputs", {}).get("dataset_inputs"))
+
     ds = ds_input.get("dataset", {})
+
     source = ds.get("source", "")
     
-    url = extract_source_url(ds)
+    url = _extract_source_url(ds)
+
+    run_id = str(info.get("run_id") or info.get("run_uuid") or "0")
+
      
     dataset = {
         "Name":        ds.get("name", ""),
@@ -105,17 +174,18 @@ def extract_run_info(run: dict) -> str:
     }
     dataset = {k: v for k, v in dataset.items() if v}     # show only present fields
 
-    run_id = str(info.get("run_id") or info.get("run_uuid") or "—")
     return RUN_CARD.format(
         run_name=escape(str(info.get("run_name") or run_id)),
         status=escape(str(info.get("status") or "UNKNOWN")),
         s_fg=s_fg, s_bg=s_bg,
+        lifecycle_stage=(str(info.get("lifecycle_stage") or "UNKNOWN")),
+        l_fg=l_fg, l_bg=l_bg,
         run_id=escape(run_id),
         user_id=escape(str(info.get("user_id") or "—")),
         duration=_duration(info),
         metrics_rows=_rows(metrics),
         params_rows=_rows(params),
-        model_rows=_rows(model, mono_keys=("model id",)),
+        model_rows=_model_blocks(run),
         dataset_rows=_rows(dataset, mono_keys=("digest",)),
     )
 
@@ -156,14 +226,14 @@ def render_document_html(state: dict) -> str:
                 run_data = get_run_by_id(eid) or {}
                 run = run_data.get("run", {})
                 if run:
-                  cards.append(extract_run_info(run))
+                  cards.append(_extract_run_info(run))
     elif evidence_ids:                          
       for eid in evidence_ids:
         if eid in aggregate.get("runs", {}):
             run_data = get_run_by_id(eid) or {}
             run = run_data.get("run", {})
             if run:
-                cards.append(extract_run_info(run))
+                cards.append(_extract_run_info(run))
       
         
     legend = "\n".join(
@@ -181,6 +251,9 @@ def render_document_html(state: dict) -> str:
               else '<p class="none">No specific runs cited in this response.</p>',
         legend=legend,
     )
+
+## extract model data from mlflow.
+## and include the lifecycle stage
 
 
 def generate_documentation(state: GraphState, output_dir: str, mimetype: str):

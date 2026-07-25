@@ -16,7 +16,7 @@ VERDICT_NOTES = {
     "missing_evidence": "Not available in the experiment data: {missing}.",
     "inconsistent":     "This response failed consistency review and could not be corrected within the retry limit.",
     "unsupported":      "This response failed evidence review and could not be corrected within the retry limit.",
-    "data_insufficient": "The available data is not sufficient to answer the query.",
+    "data_insufficient": "The available data provided by CRAG pipeline is not sufficient to answer the query.",
     "unresponsive":     "No responsive answer could be generated for this query.",
 }
 
@@ -25,18 +25,30 @@ VERDICT_LEGEND = [
     ("Incomplete", "the asked-for information is absent, omitted or never recorded"),
     ("Failed consistency",     "response contradicts the evidence"),
     ("Failed",      "response contains values absent from the evidence"),
-    ("Insufficient data", "the available data is not sufficient to answer the query"),
+    ("Insufficient data", "the available data  provided by CRAG pipeline is not sufficient to answer the query"),
     ("Unresponsive",     "response does not address the query"),
 ]
 
 STATUS_COLORS = {
-    "FINISHED": ("#0A8310", "#E4EDFF"),   # blue
-    "FAILED":   ("#F80000", "#F6E8FB"),   # violet
-    "RUNNING":  ("#0F26F1", "#E0F5FA"),   # teal
-    "KILLED":   ("#334155", "#E8EDF3"),   # slate
+    "FINISHED": ("#0A8310", "#E4EDFF"),  
+    "FAILED":   ("#F80000", "#F6E8FB"),   
+    "RUNNING":  ("#0F26F1", "#E0F5FA"),   
+    "KILLED":   ("#334155", "#E8EDF3"),   
+}
+
+LIFECYCLE_COLORS = {
+    "active":   ("#0A8310", "#E4EDFF"),
+    "deleted":  ("#941010", "#E8EDF3"),
 }
 
 
+MODEL_STATUS_COLORS = {
+    "READY":         ("#0E6E45", "#E7F5EE"), 
+    "PENDING":       ("#8A5A00", "#FCF2DC"), 
+    "UPLOAD_FAILED": ("#9E2B25", "#FBEAE8"),  
+}
+ 
+ 
 PAGE = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -108,11 +120,24 @@ PAGE = """<!DOCTYPE html>
   .panel td:last-child {{ text-align: right; }}
   .mono {{ font-family: Consolas, Menlo, monospace; font-size: 11px; word-break: break-all; }}
   .none {{ color: var(--muted); font-style: italic; }}
+  .chip {{
+    display: inline-block; font-size: 10px; font-weight: 600;
+    letter-spacing: 0.05em; padding: 2px 9px; border-radius: 10px;
+  }}
+  .model-block {{ width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }}
+  .model-block:first-child {{ margin-top: 0; }}
+  .model-block td {{ padding: 6px 0; border-top: 1px solid var(--hair); vertical-align: middle; }}
+  .model-block td:first-child {{ color: var(--muted); width: 42%; white-space: nowrap; }}
+  .model-block td:last-child {{ text-align: right; }}
+  .srclink {{ color: var(--label); text-decoration: none; word-break: break-all; }}
+  .srclink:hover {{ text-decoration: underline; }}
   .legend {{
     margin-top: 26px; padding: 10px 14px; background: var(--card);
-    border-radius: 6px; font-size: 11.5px; color: var(--muted); line-height: 1.8;
+    border-radius: 6px; font-size: 11.5px; color: var(--muted);
   }}
   .legend b {{ color: var(--ink); }}
+  .legend ul {{ margin: 6px 0 0 18px; padding: 0; line-height: 1.8; }}
+  .legend li {{ margin: 0; }}
   footer {{
     margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--hair);
     color: var(--muted); font-size: 11.5px;
@@ -120,7 +145,7 @@ PAGE = """<!DOCTYPE html>
   @page {{ size: A4; margin: 18mm 16mm; }}
   @media print {{
     body {{ padding: 0; max-width: none; }}
-    .stamp, .note, .status, .query {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+    .stamp, .note, .status, .chip, .query {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
   }}
   @media (max-width: 560px) {{ .panels {{ grid-template-columns: 1fr; }} }}
 </style>
@@ -131,31 +156,31 @@ PAGE = """<!DOCTYPE html>
   <h1>Experiment documentation</h1>
   <p class="meta">Experiment {experiment_id} &nbsp;·&nbsp; generated {timestamp} &nbsp;·&nbsp; MLflow CRAG pipeline {version}</p>
 </header>
-
+ 
 <section>
   <p class="label">Query</p>
   <p class="query">{query}</p>
 </section>
-
+ 
 <section>
   <p class="label">Response</p>
   <div class="response">{response}</div>
   {note}
 </section>
-
+ 
 <section>
   <p class="label">Run information</p>
   {cards}
 </section>
-
-<div class="legend"><b>Verdict reference:</b> {legend}</div>
-
+ 
+<div class="legend"><b>Verdict reference</b><ul>{legend}</ul></div>
+ 
 <footer>All run identifiers are traceable to the MLflow tracking server. <br>
 A <b>SUPPORTED</b> verdict additionally certifies that every value in the response
 was verified against the experiment evidence.</footer>
 </body>
 </html>"""
-
+ 
 RUN_CARD = """<div class="run">
   <span class="status" style="color:{s_fg};background:{s_bg}">{status}</span>
   <h3>{run_name}</h3>
@@ -163,23 +188,25 @@ RUN_CARD = """<div class="run">
     <tr><td>Run id</td><td class="mono">{run_id}</td></tr>
     <tr><td>Created by</td><td>{user_id}</td></tr>
     <tr><td>Duration</td><td>{duration}</td></tr>
+    <tr><td>Lifecycle</td><td><span class="chip" style="color:{l_fg};background:{l_bg}">{lifecycle_stage}</span></td></tr>
   </table>
   <div class="panels">
     <div class="panel">
-      <div class="ptitle">Metrics <span class="anchor">·</span></div>
+      <div class="ptitle">Metrics <span class="anchor"></span></div>
       <table>{metrics_rows}</table>
     </div>
     <div class="panel">
-      <div class="ptitle">Parameters <span class="anchor">·</span></div>
+      <div class="ptitle">Parameters <span class="anchor"></span></div>
       <table>{params_rows}</table>
+    </div>
+    <div class="panel">
+      <div class="ptitle">Dataset <span class="anchor"></span></div>
+      <table>{dataset_rows}</table>
     </div>
     <div class="panel">
       <div class="ptitle">Model</div>
       <table>{model_rows}</table>
     </div>
-    <div class="panel">
-      <div class="ptitle">Dataset <span class="anchor">·</span></div>
-      <table>{dataset_rows}</table>
-    </div>
   </div>
 </div>"""
+ 

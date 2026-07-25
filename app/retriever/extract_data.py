@@ -6,12 +6,15 @@ from typing import Any
 import requests
 from collections import defaultdict
 from app.config import PREFIX_ROUTING, STOP_TERMS, SKIP_PREFIXES
+from dotenv import load_dotenv 
+
+load_dotenv() 
 
 tracking_uri = os.environ.get("ML_FLOW_tRACKING_URI", "http://localhost:5000")
 
-PAGE_SIZE = os.environ.get("PAGE_SIZE", 100)
+PAGE_SIZE = int(os.environ.get("PAGE_SIZE", 100))
 
-TIMEOUT_S = os.environ.get("TIMEOUT_SECONDS", 30)
+TIMEOUT_S = int(os.environ.get("TIMEOUT_SECONDS", 30))
 
 
 def fetch_paginated_runs_by_experiment_id(experiment_id):
@@ -106,7 +109,44 @@ def get_all_runs_by_experiment_name(experiment_name):
     except Exception as e:
         raise Exception(f"Error occurred while fetching all runs: {e}")
     
+## Extract model data by model id
+def get_model_by_id(model_id):
+    try:
+        url = f"{tracking_uri}/api/2.0/mlflow/logged-models/{model_id}"
+        response = requests.get(url, timeout=TIMEOUT_S)
 
+        if response.status_code != http.HTTPStatus.OK:
+            raise Exception(f"Failed to get model")
+
+        model_data = response.json()
+        return model_data
+    except Exception as e:
+        raise Exception(f"Error occurred while fetching model: {e}")
+
+def get_run_by_id(run_id):
+    """
+    Get the run by ID.
+
+    Args:
+        run_id (str): The ID of the run.
+
+    Returns:
+        run_data (dict): The data of the run.
+    """
+    try:
+        url = f"{tracking_uri}/api/2.0/mlflow/runs/get"
+
+        response = requests.get(url, params={"run_id": run_id})
+
+        if response.status_code != http.HTTPStatus.OK:
+            raise Exception(f"Failed to get run")
+
+        run_data = response.json()       
+        print(f"Run data: {run_data}")
+        return run_data 
+
+    except Exception as e:
+        raise Exception(f"Error occurred while fetching run: {e}")
 
 # Extension functions:
 # Unwrap the run data to get the run object, flatten the run data, and extract keywords from the flattened run data.
@@ -198,31 +238,7 @@ def normalize_path(path: str) -> str:
     """
     return re.sub(r"\[(\d+)\]", r".\1", path)
 
-## An example function to use while testing.
-def get_run_by_id(run_id):
-    """
-    Get the run by ID.
 
-    Args:
-        run_id (str): The ID of the run.
-
-    Returns:
-        run_data (dict): The data of the run.
-    """
-    try:
-        url = f"{tracking_uri}/api/2.0/mlflow/runs/get"
-
-        response = requests.get(url, params={"run_id": run_id})
-
-        if response.status_code != http.HTTPStatus.OK:
-            raise Exception(f"Failed to get run")
-
-        run_data = response.json()       
-        print(f"Run data: {run_data}")
-        return run_data 
-
-    except Exception as e:
-        raise Exception(f"Error occurred while fetching run: {e}")
 
 
 

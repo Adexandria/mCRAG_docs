@@ -24,7 +24,8 @@ def log_model(X_train, y_train, X_test, y_test, dataset):
 
 
         # Log the model
-        model_info = mlflow.sklearn.log_model(sk_model=lr, name="logistic_regression_model")
+        model_info = mlflow.sklearn.log_model(sk_model=lr, name="logistic_regression_model", 
+                                              input_example= X_train, register_model_name="LogisticRegressionModel")
         y_pred = lr.predict(X_test)
 
         accuracy = accuracy_score(y_test, y_pred)
@@ -80,7 +81,8 @@ def random_forest_model(X_train, y_train, X_test, y_test, dataset):
 
 
         # Log the model
-        model_info = mlflow.sklearn.log_model(sk_model=rf, name="random_forest_model")
+        model_info = mlflow.sklearn.log_model(sk_model=rf, name="random_forest_model", 
+                                              input_example=X_train, register_model_name="RandomForestModel")
         y_pred = rf.predict(X_test)
 
         accuracy = accuracy_score(y_test, y_pred)
