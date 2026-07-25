@@ -14,8 +14,24 @@ from html import escape
 
 import json
 from app.retriever.extract_data import get_model_by_id, get_run_by_id
-from template.doc_template import MODEL_STATUS_COLORS, PAGE, RUN_CARD, VERDICTS, VERDICT_NOTES, VERDICT_LEGEND, STATUS_COLORS, PIPELINE_VERSION, LIFECYCLE_COLORS
+from template.doc_template import (
+MODEL_STATUS_COLORS, 
+PAGE_TEMPLATE, 
+RUN_CARD,
+RUN_CARD_MD, 
+VERDICTS,
+VERDICT_NOTES,
+VERDICT_LEGEND,
+STATUS_COLORS, 
+PIPELINE_VERSION, 
+LIFECYCLE_COLORS, 
+VERDICT_MD_NOTES,
+VERDICT_DESCRIPTIONS,
+VERDICT_BADGE,
+MD_TEMPLATE)
 
+def _s(v) -> str:
+    return str(v) if v is not None else ""
 
 def _duration(info: dict) -> str:
     start, end = info.get("start_time"), info.get("end_time")
@@ -43,6 +59,14 @@ def _rows(items: dict, mono_keys=()) -> str:
         out.append(f"<tr><td>{escape(str(k))}</td><td{cls}>{cell}</td></tr>")
     return "\n".join(out)
 
+def _md_rows(items: dict) -> str:
+    """Full markdown table (header + separator + rows), not just body rows —
+    without the header/separator, most renderers show plain pipe-text instead
+    of a table."""
+    header = "| Field | Value |\n|---|---|"
+    if not items:
+        return f"{header}\n| — | *none recorded* |"
+    return header + "\n" + "\n".join(f"| {k} | {_s(v)} |" for k, v in items.items())
 
 def _suffix_pick(group: dict, wanted: dict) -> dict:
     """Pick fields from a flat group dict by key suffix.
@@ -96,6 +120,7 @@ def _extract_model_version(tags: dict) -> str:
         return f"{name} version {version}"
     return name or (f"version {version}" if version else "")        
 
+
 def _model_blocks(run: dict) -> str:
     """One block per model_output on this run, each with its own fetched
     details (name, status, registration) and its own fallback on fetch failure."""
@@ -138,7 +163,48 @@ def _model_blocks(run: dict) -> str:
 
     return "\n".join(blocks)
 
-def _extract_run_info(run: dict) -> str:
+
+
+def _md_model_blocks(run: dict, run_details: dict | None = None) -> str:
+    """One markdown table per model_output on this run."""
+    outputs = run.get("outputs", {}).get("model_outputs", []) or []
+    if not outputs:
+        return "*none recorded*"
+ 
+    blocks = []
+    for mo in outputs:
+        model_id = mo.get("model_id", "")
+        rows = {"Model id": f"`{model_id}`", "Step": mo.get("step", "")}
+ 
+        info = ((run_details or {}).get("models", {}).get(model_id, {}) or {}).get("info", {})
+        if info:
+            rows["Name"] = info.get("name", "")
+            status = _s(info.get("status")).removeprefix("LOGGED_MODEL_")
+            if status:
+                rows["Status"] = status
+            rows["Created at"] = _convert_timestamp_to_datetime(info.get("creation_timestamp"))
+            rows["Last updated"] = _convert_timestamp_to_datetime(info.get("last_updated_timestamp"))
+            model_type = info.get("model_type", "")
+            if model_type:
+                rows["Model type"] = model_type
+            tag_list = info.get("tags") or []
+            if tag_list:
+                version_str = _extract_model_version(_kv(tag_list))
+                if version_str:
+                    rows["Version"] = version_str
+            regs = info.get("registrations") or []
+            if regs:
+                rows["Registered as"] = f'{regs[0].get("name", "")} v{regs[0].get("version", "")}'
+ 
+        rows = {k: v for k, v in rows.items() if v}
+        table = "| Field | Value |\n|---|---|\n" + "\n".join(
+            f"| {k} | {_s(v)} |" for k, v in rows.items())
+        blocks.append(table)
+ 
+    return "\n\n".join(blocks)
+
+
+def _extract_run_info(run: dict, mimeType: MIMETYPE) -> str:
     """One run (raw MLflow /runs/get shape) → rendered RUN_CARD html."""
     info = run.get("info", {}) or {}
     data = run.get("data", {}) or {}
@@ -174,7 +240,21 @@ def _extract_run_info(run: dict) -> str:
     }
     dataset = {k: v for k, v in dataset.items() if v}     # show only present fields
 
-    return RUN_CARD.format(
+    if mimeType == MIMETYPE.MARKDOWN:
+        return RUN_CARD_MD.format(
+            run_name=escape(str(info.get("run_name") or run_id)),
+            status=escape(str(info.get("status") or "UNKNOWN")),
+            lifecycle_stage=(str(info.get("lifecycle_stage") or "UNKNOWN")),
+            run_id=escape(run_id),
+            user_id=escape(str(info.get("user_id") or "—")),
+            duration=_duration(info),
+            metrics_rows=_md_rows(metrics),
+            params_rows=_md_rows(params),
+            model_rows=_md_model_blocks(run),
+            dataset_rows=_md_rows(dataset),
+        )
+    else:
+        return RUN_CARD.format(
         run_name=escape(str(info.get("run_name") or run_id)),
         status=escape(str(info.get("status") or "UNKNOWN")),
         s_fg=s_fg, s_bg=s_bg,
@@ -202,7 +282,7 @@ def _summarize_schema(schema_str) -> str:
   
 
 
-def render_document_html(state: dict) -> str:
+def render_document_html(state: dict, mimeType: MIMETYPE) -> str:
     """
     state: final graph state (query, generation, grading_result, experiment_id)
     """
@@ -211,14 +291,25 @@ def render_document_html(state: dict) -> str:
 
     aggregate = state.get("aggregates", {})
 
-
     answer = answer if answer else "No answer generated"
+
     evidence_ids = state.get("evidence_ids", [])
 
-    v_label, v_fg, v_bg = VERDICTS.get(judge.verdict, VERDICTS["unsupported"])
-    note_text = VERDICT_NOTES.get(judge.verdict, "").format(
-        missing=escape(", ".join(judge.missing_evidence)))
-    note = f'<p class="note">{note_text}</p>' if note_text else ""
+    verdict = judge.verdict if judge else "unsupported"
+    missing_evidence = judge.missing_evidence if judge else []
+    if mimeType == MIMETYPE.MARKDOWN:
+        badge = VERDICT_BADGE[verdict]
+        note = VERDICT_MD_NOTES.get(verdict, "").format(
+            missing=escape(", ".join(missing_evidence)))
+        legend = "\n".join(
+                f"- **{name}** —— {desc}" for name, desc in VERDICT_DESCRIPTIONS)
+    else:
+        v_label, v_fg, v_bg = VERDICTS.get(verdict, VERDICTS["unsupported"])
+        note_text = VERDICT_NOTES.get(verdict, "").format(
+        missing=escape(", ".join(missing_evidence)))
+        note = f'<p class="note">{note_text}</p>' if note_text else ""
+        legend = "\n".join(
+                f"<li><b>{name}</b>: {desc}</li>" for name, desc in VERDICT_LEGEND)
 
     cards = []
     if judge.related_run_ids:                                  
@@ -226,20 +317,30 @@ def render_document_html(state: dict) -> str:
                 run_data = get_run_by_id(eid) or {}
                 run = run_data.get("run", {})
                 if run:
-                  cards.append(_extract_run_info(run))
+                  cards.append(_extract_run_info(run, mimeType))
     elif evidence_ids:                          
       for eid in evidence_ids:
         if eid in aggregate.get("runs", {}):
             run_data = get_run_by_id(eid) or {}
             run = run_data.get("run", {})
             if run:
-                cards.append(_extract_run_info(run))
-      
-        
-    legend = "\n".join(
-        f"<li><b>{name}</b>: {desc}</li>" for name, desc in VERDICT_LEGEND)
-
-    return PAGE.format(
+                cards.append(_extract_run_info(run, mimeType))
+    
+    if mimeType == MIMETYPE.MARKDOWN:
+        return MD_TEMPLATE.format(
+            experiment_id=escape(str(state["experiment_id"])),
+            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M"),
+            version=PIPELINE_VERSION,
+            badge=badge,
+            query=escape(state["query"]),
+            response=escape(answer),
+            note=note,
+            cards="\n\n".join(cards) if cards
+                  else '*No specific runs cited in this response.*',
+            legend=legend,
+        )
+    
+    return PAGE_TEMPLATE.format(
         experiment_id=escape(str(state["experiment_id"])),
         timestamp=datetime.now().strftime("%Y-%m-%d %H:%M"),
         version=PIPELINE_VERSION,
@@ -250,10 +351,8 @@ def render_document_html(state: dict) -> str:
         cards="\n".join(cards) if cards
               else '<p class="none">No specific runs cited in this response.</p>',
         legend=legend,
-    )
+         )
 
-## extract model data from mlflow.
-## and include the lifecycle stage
 
 
 def generate_documentation(state: GraphState, output_dir: str, mimetype: str):
@@ -264,13 +363,8 @@ def generate_documentation(state: GraphState, output_dir: str, mimetype: str):
         output_dir (str): The directory where the generated documentation will be saved.
         mimetype (str): The MIME type of the documentation to be generated.
     """
-    # template = extract_template()
-    # print(f"Template extracted from {TEMPLATE_PATH}.")
 
-    # data = extract_template_response(state)
-    # documentation = append_data_to_template(template, data.model_dump())
-
-    documentation = render_document_html(state)
+    documentation = render_document_html(state, mimetype)
 
     base_dir = os.path.join(output_dir, f"experiment_{state['experiment_id']}")
     os.makedirs(base_dir, exist_ok=True)
@@ -281,15 +375,6 @@ def generate_documentation(state: GraphState, output_dir: str, mimetype: str):
 
     if mimetype == MIMETYPE.PDF:
         HTML(string=documentation).write_pdf(output_path)
-        
-    elif mimetype == MIMETYPE.MARKDOWN:
-        soup = BeautifulSoup(documentation, "html.parser")
-        for tag in soup(["style", "script", "head", "footer"]):
-            tag.decompose()  
-        markdown = md(str(soup), heading_style="ATX")
-        with open(output_path, "w", encoding="utf-8") as file:
-            file.write(markdown)
-            
     else:
         with open(output_path, "w", encoding="utf-8") as file:
             file.write(documentation)

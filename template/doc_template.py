@@ -49,7 +49,7 @@ MODEL_STATUS_COLORS = {
 }
  
  
-PAGE = """<!DOCTYPE html>
+PAGE_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -209,4 +209,83 @@ RUN_CARD = """<div class="run">
     </div>
   </div>
 </div>"""
+
  
+VERDICT_BADGE = {
+    "supported":         "✅ SUPPORTED",
+    "missing_evidence":  "⚠️ INCOMPLETE",
+    "data_insufficient": "⚠️ INSUFFICIENT DATA",
+    "inconsistent":      "❌ FAILED CONSISTENCY",
+    "unsupported":       "❌ FAILED EVIDENCE",
+    "unresponsive":      "❌ UNRESPONSIVE",
+}
+ 
+VERDICT_MD_NOTES = {
+    "supported":         "> ✅ Passes all criteria: the answer is complete, consistent, and traceable to the evidence.\n",
+    "missing_evidence":  "> ⚠️ Not available in the experiment data: {missing}.\n",
+    "data_insufficient": "> ⚠️ The available data is not sufficient to answer this query: {missing}.\n",
+    "inconsistent":      "> ⚠️ This response failed consistency review and could not be corrected within the retry limit.\n",
+    "unsupported":       "> ⚠️ This response failed evidence review and could not be corrected within the retry limit.\n",
+    "unresponsive":      "> ⚠️ No responsive answer could be generated for this query.\n",
+}
+ 
+VERDICT_DESCRIPTIONS = [
+    ("supported",         "every value verified against the evidence"),
+    ("missing_evidence",  "the asked-for information is absent, omitted, or never recorded"),
+    ("data_insufficient", "the available data is not sufficient to answer the query"),
+    ("inconsistent",      "response contradicts the evidence"),
+    ("unsupported",       "response contains values absent from the evidence"),
+    ("unresponsive",      "response does not address the query"),
+]
+ 
+MD_TEMPLATE = """# Experiment documentation — experiment {experiment_id}
+ 
+**Verdict:** {badge}
+*Generated {timestamp} · MLflow CRAG pipeline {version}*
+ 
+## Query
+ 
+> {query}
+ 
+## Response
+ 
+{response}
+{note}
+## Run information
+ 
+{cards}
+ 
+## Verdict reference
+ 
+{legend}
+ 
+---
+All run identifiers are traceable to the MLflow tracking server.
+A **SUPPORTED** verdict additionally certifies that every value in the response was verified
+against the experiment evidence.
+"""
+ 
+RUN_CARD_MD = """### {run_name} — `{status}` · lifecycle: `{lifecycle_stage}`
+ 
+| Field | Value |
+|---|---|
+| Run id | `{run_id}` |
+| Created by | {user_id} |
+| Duration | {duration} |
+ 
+**Metrics**
+ 
+{metrics_rows}
+ 
+**Parameters**
+ 
+{params_rows}
+ 
+**Dataset**
+ 
+{dataset_rows}
+ 
+**Model**
+ 
+{model_rows}
+"""

@@ -25,7 +25,7 @@ for mode, out in app.stream(inputs, stream_mode=["updates", "values"]):
 
 
 print("Generating documentation...")
-generate_documentation(final_state, MEDIA_PATH, MIMETYPE.HTML)
+generate_documentation(final_state, MEDIA_PATH, MIMETYPE.PDF)
 
 
 
