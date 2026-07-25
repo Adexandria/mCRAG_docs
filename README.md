@@ -80,6 +80,35 @@ app/
    python -m app.crag.compiler.base_compiler
    ```
 
+## Running the pipeline via script
+
+1. **Start the MLflow server:**
+
+```bash
+   uvx mlflow server
+```
+
+2. **First run only** — generates test data, ingests it, and runs the corrective workflow:
+
+```bash
+   ./run_pipeline.sh --query "Which attempt gave the best result" --experiment-id 1
+```
+
+3. **Subsequent runs** — reuse existing data and just run the corrective workflow:
+
+```bash
+   ./run_pipeline.sh --query "Which attempt gave the best result" --experiment-id 1 \
+     --skip-testcases --skip-ingest
+```
+
+4. **Base (non-corrective) workflow** — same as above, using plain retrieval instead:
+
+```bash
+   ./run_pipeline.sh --query "Which attempt gave the best result" --experiment-id 1 \
+     --skip-testcases --skip-ingest --use-base-retriever
+```
+
+
 ## How it works
 
 ```
@@ -96,3 +125,5 @@ query → retrieve → grade structure → aggregate → generate → judge
 ## Output
 
 Documentation is rendered from a template into HTML, Markdown, or PDF, including the query, the judged response, and run information cards traceable to MLflow run IDs.
+
+
