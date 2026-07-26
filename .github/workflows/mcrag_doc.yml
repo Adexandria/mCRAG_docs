@@ -1,0 +1,24 @@
+name: Generate Corrective RAG MLFlow Documentation
+
+on:
+  workflow_dispatch:
+    inputs:
+      query:
+        description: "The question to answer"
+        required: true
+      experiment_id:
+        description: "MLFlow experiment ID"
+        required: true
+  
+jobs:
+  generate_docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with: 
+           query: ${{ github.event.inputs.query }}
+           experiment-id: ${{ github.event.inputs.experiment_id }}
+           start-mlflow-server: true
+           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+        
