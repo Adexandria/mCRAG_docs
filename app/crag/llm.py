@@ -54,6 +54,7 @@ def rewrite_query(query: str) -> dict[str, str]:
     response = client.messages.create(
         model=model_name,
         max_tokens=150,
+        temperature=0,
         system=prompt,
         messages=[{"role": "user", "content": query}],
     )
@@ -87,6 +88,7 @@ def generate_report(query: str, aggregates: str) -> GenerateResponse:
     response = client.messages.create(
         model=model_name,
         max_tokens=500,
+        temperature=0,
         system=GENERATE_PROMPT,
         messages=messages,
     )
@@ -124,6 +126,7 @@ def grade_report(query: str, answer: str, aggregates: str) -> JudgeResponse:
     response = client.messages.create(
         model=model_name,
         max_tokens=500,
+        temperature=0,
         system=JUDGE_PROMPT,
         messages=messages,
     )
