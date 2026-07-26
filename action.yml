@@ -41,7 +41,7 @@ inputs:
     required: true
 
   output-format:
-    description: "The desired output format for the generated documentation (HTML, Markdown, PDF)."
+    description: "The desired output format for the generated documentation (html, markdown, pdf)."
     required: true
     default: "html"
   
