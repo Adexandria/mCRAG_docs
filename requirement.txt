@@ -6,3 +6,6 @@ sentence-transformers
 langgraph
 pydantic
 weasyprint
+mlflow
+scikit-learn
+pandas
