@@ -20,5 +20,6 @@ jobs:
            query: ${{ github.event.inputs.query }}
            experiment-id: ${{ github.event.inputs.experiment_id }}
            start-mlflow-server: true
+           skip-testcases: false
            anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
         
