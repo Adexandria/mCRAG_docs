@@ -10,3 +10,4 @@ mlflow
 scikit-learn
 pandas
 langchain-huggingface
+anthropic
