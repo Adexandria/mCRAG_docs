@@ -9,9 +9,6 @@ on:
       experiment_id:
         description: "MLFlow experiment ID"
         required: true
-  push:
-    branches:
-      - main
   
 jobs:
   generate_docs:
