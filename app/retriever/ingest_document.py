@@ -8,7 +8,7 @@ from app.config import CORPUS_VOCAB_PATH
 from app.crag.vector_stores import vector_store
 from collections import defaultdict
 
-from app.retriever.extract_data import unwrap_run_data, flatten,get_all_runs_by_experiment_name, extract_keywords
+from app.retriever.extract_data import unwrap_run_data, flatten,get_all_runs_by_experiment_id, extract_keywords
 
 
 def split_chunks(runs_data):
@@ -84,21 +84,12 @@ def split_run_chunks(run_data, splitter):
 if __name__ == "__main__":
     argument_parser = argparse.ArgumentParser(description="Ingest MLflow run data into Chroma vector store.")
 
-    argument_parser.add_argument("--experiment-name", type=str, required=False, help="Name of the experiment to ingest.")
     argument_parser.add_argument("--experiment-id", type=str, required=False, help="ID of the experiment to ingest. If not provided, the experiment_name will be used to fetch the ID.")
 
     args = argument_parser.parse_args()
-    experiment_name = args.experiment_name
     experiment_id = args.experiment_id
 
-    if not experiment_id and not experiment_name:
-        raise ValueError("Either --experiment-name or --experiment-id must be provided.")
-
-    print(f"Fetching runs for experiment: {experiment_name if experiment_name else experiment_id}")
-    if experiment_id:
-        runs_data = get_all_runs_by_experiment_name(experiment_id, isId=True)
-    else:
-        runs_data = get_all_runs_by_experiment_name(experiment_name, isId=False)
+    runs_data = get_all_runs_by_experiment_id(experiment_id)
 
     print(f"Number of runs fetched: {len(runs_data)}")
 

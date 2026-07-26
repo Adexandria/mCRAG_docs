@@ -5,10 +5,9 @@ set -euo pipefail
 MIMETYPE="html"
 SKIP_INGESTION=false
 SKIP_TESTCASES=false
-EXPERIMENT_NAME=""
 EXPERIMENT_ID=""
 QUERY=""
-MEDIA_PATH="media"
+MEDIA_PATH="docs_output"
 USE_BASE_RETRIEVER=false
 
 INFERENCE_MODULE="evaluation.test_case.inference"
@@ -23,7 +22,6 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --query)           QUERY="$2"; shift 2 ;;
     --experiment-id)   EXPERIMENT_ID="$2"; shift 2 ;;
-    --experiment-name) EXPERIMENT_NAME="$2"; shift 2 ;;
     --media-path)       MEDIA_PATH="$2"; shift 2 ;;
     --mimetype)        MIMETYPE="$2"; shift 2 ;;
     --use-base-retriever)  USE_BASE_RETRIEVER=true; shift ;;
@@ -38,15 +36,11 @@ if [[ -z "$QUERY" ]]; then
   exit 1
 fi
 
-if [[ -z "$EXPERIMENT_ID" ]] && [[ "$SKIP_INGESTION" == true ]]; then
+if [[ -z "$EXPERIMENT_ID" ]]; then
   echo "ERROR: --experiment-id is required" >&2
   exit 1
 fi
 
-if [[ -z "$EXPERIMENT_ID" && -z "$EXPERIMENT_NAME" ]] && [[ "$SKIP_INGESTION" == false ]]; then
-  echo "ERROR: --experiment-id or --experiment-name are required" >&2
-  exit 1
-fi
 
 case "$MIMETYPE" in
   html|pdf|md) ;;
@@ -86,7 +80,7 @@ else
 fi
  
 if [[ "$SKIP_INGESTION" == false ]]; then
-  run_stage "2/3 ingest" "$INGEST_MODULE" --experiment-id "$EXPERIMENT_ID" --experiment-name "$EXPERIMENT_NAME"
+  run_stage "2/3 ingest" "$INGEST_MODULE" --experiment-id "$EXPERIMENT_ID"
 else
   echo ""
   echo "[2/3 ingest] skipped (--skip-ingest)"
@@ -107,6 +101,7 @@ else
 fi
 
 PIPELINE_END=$(date +%s)
+echo "OUTPUT_PATH=${MEDIA_PATH}"
 echo ""
 echo "============================================================"
 echo "Pipeline completed successfully in $((PIPELINE_END - PIPELINE_START))s"

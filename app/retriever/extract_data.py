@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 load_dotenv() 
 
-tracking_uri = os.environ.get("ML_FLOW_tRACKING_URI", "http://localhost:5000")
+tracking_uri = os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000")
 
 PAGE_SIZE = int(os.environ.get("PAGE_SIZE", 100))
 
@@ -91,25 +91,18 @@ def get_experiment_by_name(experiment_name):
         raise Exception(f"Error occurred while fetching experiment: {e}")
 
 
-def get_all_runs_by_experiment_name(experiment_name, isId=False):
+def get_all_runs_by_experiment_id(experiment_id):
     """
-    Get all runs by experiment name.
+    Get all runs by experiment ID.
 
     Args:
-        experiment_name (str): The name of the experiment.
-        isId (bool): Whether the experiment_name is an ID or a name. If True, the experiment_name is treated as an ID.
+        experiment_id (str): The ID of the experiment.
 
     Returns:
         runs_data (list): A list of runs data.
     """
     try:
-        if isId:
-            experiment = experiment_name
-        else:
-            experiment = get_experiment_by_name(experiment_name)
-            print(f"Experiment for '{experiment_name}': {experiment}")
-
-        return list(fetch_all_runs_by_experiment_id(experiment))
+        return list(fetch_all_runs_by_experiment_id(experiment_id))
         
     except Exception as e:
         raise Exception(f"Error occurred while fetching all runs: {e}")
