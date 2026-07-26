@@ -1,0 +1,131 @@
+name: "MLFlow Corrective RAG"
+description: >
+  Corrective Retrieval-Augmented Generation (RAG) for MLFlow: Extracts the existings run from an experiment
+  and ingest the data into a vector store, and executes a corrective retrieval-augmented generation (RAG) technique to produce
+  an evidence-traceable experiment documentation in HTML, Markdown, or PDF format. 
+author: "Aderibigbe Adeola Wuraola"
+
+branding:
+  color: "blue"
+
+inputs:
+  mlflow-tracking-uri:
+    description: "The MLFlow tracking URI to connect to the MLFlow server."
+    required: false
+    default: "http://127.0.0.1:5000"
+  
+  start-mlflow-server:
+    description: "Whether to start the MLFlow server if it's not running. Defaults to true."
+    required: false
+    default: "true"
+    
+  experiment-id:
+    description: "The ID of the MLFlow experiment to extract runs from."
+    required: true
+
+  query:
+    description: "The query to use for the corrective retrieval-augmented generation (RAG) process."
+    required: true
+
+  skip-testcases:
+    description: >
+      Skip synthetic test-case generation. Defaults to true: this
+      action assumes you're documenting your own MLflow experiment
+      data. Set to "false" only for demos where you want reproducible
+      synthetic runs generated first.
+    required: false
+    default: "true"
+
+  anthropic-api-key:
+    description: "The API key for the Anthropic API."
+    required: true
+
+  output-format:
+    description: "The desired output format for the generated documentation (HTML, Markdown, PDF)."
+    required: true
+    default: "HTML"
+  
+
+outputs:
+    output-path:
+      description: "The path to the generated documentation file."
+      value: ${{ steps.run_pipeline.outputs.output-path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+    - name: Install system dependencies for PDF generation
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libpango-1.0-0 libpangocairo-1.0-0
+    - name: Install Python dependencies
+      shell: bash
+      run: |
+        pip install -r "${{ github.action_path }}/requirement.txt"
+
+    - name: Check if MLFlow server is reachable
+      if: ${{ inputs.start-mlflow-server == 'false' }}
+      shell: bash
+      run: |
+        if ! curl -s --head ${{ inputs.mlflow_tracking_uri }} | grep "200 OK" > /dev/null; then
+          echo "Error: MLFlow server at ${{ inputs.mlflow_tracking_uri }} is not reachable."
+          exit 1
+        fi
+    - name: Start MLFlow server if not running
+      if: ${{ inputs.start-mlflow-server == 'true' }}
+      shell: bash
+      run: |
+        nohup mlflow server --host 127.0.0.1 --port 5000 > mlflow_server.log 2>&1 &
+        echo "Waiting for MLflow server to become healthy..."
+        for i in $(seq 1 30); do
+          if curl -sf "${{ inputs.mlflow-tracking-uri }}/health" > /dev/null; then
+            echo "MLflow server is up."
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "MLflow server did not become healthy in time." >&2
+        cat mlflow_server.log >&2
+        exit 1
+
+    - name: Run the Corrective RAG Pipeline
+      id: run_pipeline
+      shell: bash
+      env:
+        MLFLOW_TRACKING_URI: ${{ inputs.mlflow-tracking-uri }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+      run: |
+        ARGS =(
+          --experiment-id "${{ inputs.experiment-id }}"
+          --query "${{ inputs.query }}"
+          --mimetype "${{ inputs.output-format }}"
+        )
+
+        if [[ "${{ inputs.skip-testcases }}" == "true" ]]; then
+          ARGS+=(--skip-testcases)
+        fi
+
+        chmod +x "${{ github.action_path }}/run_pipeline.sh"
+        "${{ github.action_path }}/run_pipeline.sh" "${ARGS[@]}" | tee pipeline.log
+
+        OUTPUT_PATH=$(grep '^OUTPUT_PATH=' pipeline.log | tail -1 | cut -d= -f2-)
+        if [[ -z "$OUTPUT_PATH" ]]; then
+          echo "Could not find OUTPUT_PATH in pipeline output — failing." >&2
+          exit 1
+        fi
+        echo "output-path=${OUTPUT_PATH}" >> "$GITHUB_OUTPUT"
+    - name: Set timestamp
+      id: ts
+      shell: bash
+      run: echo "value=$(date -u +'%Y%m%d%H%M%S')" >> "$GITHUB_OUTPUT"
+
+    - name: Upload generated documentation as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: mcrag-documentation-${{ inputs.experiment-id }}-${{ steps.ts.outputs.value }}
+        path: ${{ steps.run_pipeline.outputs.output-path }}
