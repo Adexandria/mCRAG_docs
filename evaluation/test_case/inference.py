@@ -7,7 +7,7 @@ from sklearn.ensemble import RandomForestClassifier
 import pandas as pd
 import mlflow.data
 
-tracking_uri = os.environ.get("ML_FLOW_tRACKING_URI", "http://localhost:5000")
+tracking_uri = os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000")
 
 def log_model(X_train, y_train, X_test, y_test, dataset):
     with mlflow.start_run():
