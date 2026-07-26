@@ -100,7 +100,7 @@ runs:
         MLFLOW_TRACKING_URI: ${{ inputs.mlflow-tracking-uri }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
       run: |
-        ARGS =(
+        ARGS=(
           --experiment-id "${{ inputs.experiment-id }}"
           --query "${{ inputs.query }}"
           --mimetype "${{ inputs.output-format }}"
