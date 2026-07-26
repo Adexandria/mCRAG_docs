@@ -43,7 +43,7 @@ inputs:
   output-format:
     description: "The desired output format for the generated documentation (HTML, Markdown, PDF)."
     required: true
-    default: "HTML"
+    default: "html"
   
 
 outputs:
