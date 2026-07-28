@@ -12,22 +12,25 @@ def run_corrective_workflow(query: str, experiment_id: str, media_path: str = ME
     """
     Run the corrective workflow with the given query and experiment ID.
     """
-    inputs = {
+    try:
+        inputs = {
         "query": query,
         "experiment_id": experiment_id,
         "retry_count": 0
-    }
-    print(f"Running corrective workflow with query: '{query}' and experiment_id: '{experiment_id}'")
+        }
+        print(f"Running corrective workflow with query: '{query}' and experiment_id: '{experiment_id}'")
 
-    app = corrective_workflow()
+        app = corrective_workflow()
 
-    final_state = app.invoke(inputs)
+        final_state = app.invoke(inputs)
 
-    print("Corrective Workflow completed. Generating documentation...")
+        print("Corrective Workflow completed. Generating documentation...")
 
-    generate_documentation(final_state, media_path, mimetype)
+        generate_documentation(final_state, media_path, mimetype)
     
-    print("Documentation generated successfully.")
+        print("Documentation generated successfully.")
+    except Exception as e:
+        print(f"Corrective Workflow failed. No documentation generated. Error: {e}")
 
 
 if __name__ == "__main__":

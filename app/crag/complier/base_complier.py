@@ -15,22 +15,25 @@ def run_workflow(query: str, experiment_id: str, media_path: str = MEDIA_PATH, m
     """
     Run the workflow with the given query and experiment ID.
     """
-    inputs = {
+    try:
+        inputs = {
         "query": query,
         "experiment_id": experiment_id,
         "retry_count": 0
-    }
-    print(f"Running base workflow with query: '{query}' and experiment_id: '{experiment_id}'")
+        }
+        print(f"Running base workflow with query: '{query}' and experiment_id: '{experiment_id}'")
 
-    app = base_workflow()
+        app = base_workflow()
 
-    final_state = app.invoke(inputs)    
+        final_state = app.invoke(inputs)    
 
-    print("Base Workflow completed. Generating documentation...")
+        print("Base Workflow completed. Generating documentation...")
 
-    generate_documentation(final_state, media_path, mimetype)
+        generate_documentation(final_state, media_path, mimetype)
     
-    print("Documentation generated successfully.")
+        print("Documentation generated successfully.")
+    except Exception as e:
+        print(f"Base Workflow failed. No documentation generated. Error: {e}")
 
 if __name__ == "__main__":
     argument_parser = argparse.ArgumentParser(description="Run the workflow with a query and experiment ID.")
