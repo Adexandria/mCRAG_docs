@@ -11,20 +11,20 @@ VERDICTS = {
 }
 
 VERDICT_NOTES = {
-    "supported":        "Passes all criteria: the answer is complete, consistent, and traceable to the MLFlow experiment.",
-    "missing_evidence": "Not available in the MLFlow experiment data: {missing}.",
+    "supported":        "Passes all criteria: the answer is complete, consistent, and traceable to the MLflow experiment.",
+    "missing_evidence": "Not available in the MLflow experiment data: {missing}.",
     "inconsistent":     "This response failed consistency review or could not be corrected within the retry limit.",
-    "unsupported":      "This response failed MLFlow experiment review or could not be corrected within the retry limit.",
-    "data_insufficient": "The available MLFlow experiment data provided by CRAG pipeline is not sufficient to answer the query: {missing}.",
+    "unsupported":      "This response failed MLflow experiment review or could not be corrected within the retry limit.",
+    "data_insufficient": "The available MLflow experiment data provided by CRAG pipeline is not sufficient to answer the query: {missing}.",
     "unresponsive":     "No responsive answer could be generated for this query.",
 }
 
 VERDICT_LEGEND = [
-    ("Supported",        "every value verified against the MLFlow experiment"),
+    ("Supported",        "every value verified against the MLflow experiment"),
     ("Incomplete", "the asked-for information is absent, omitted or never recorded"),
-    ("Inconsistency",     "response contradicts the MLFlow experiment"),
-    ("Failed",      "response contains values absent from the MLFlow experiment"),
-    ("Insufficient data", "the available MLFlow experiment data provided by CRAG pipeline is not sufficient to answer the query"),
+    ("Inconsistency",     "response contradicts the MLflow experiment"),
+    ("Failed",      "response contains values absent from the MLflow experiment"),
+    ("Insufficient data", "the available MLflow experiment data provided by CRAG pipeline is not sufficient to answer the query"),
     ("Unresponsive",     "response does not address the query"),
 ]
 
@@ -153,7 +153,7 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
 <header>
   <span class="stamp">{v_label}</span>
   <h1>Experiment documentation</h1>
-  <p class="meta">Experiment {experiment_id} &nbsp;·&nbsp; generated {timestamp} &nbsp;·&nbsp; MLFlow Corrective RAG (CRAG) pipeline {version}</p>
+  <p class="meta">Experiment {experiment_id} &nbsp;·&nbsp; generated {timestamp} &nbsp;·&nbsp; MLflow Corrective RAG (CRAG) pipeline {version}</p>
 </header>
  
 <section>
@@ -174,9 +174,9 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
  
 <div class="legend"><b>Verdict reference</b><ul>{legend}</ul></div>
  
-<footer>All run identifiers are traceable to the MLFlow tracking server. <br>
+<footer>All run identifiers are traceable to the MLflow tracking server. <br>
 A <b>SUPPORTED</b> verdict additionally certifies that every value in the response
-was verified against the experiment MLFlow experiment.</footer>
+was verified against the experiment MLflow experiment.</footer>
 </body>
 </html>"""
  
@@ -220,27 +220,27 @@ VERDICT_BADGE = {
 }
  
 VERDICT_MD_NOTES = {
-    "supported":         "> ✅ Passes all criteria: the answer is complete, consistent, and traceable to the MLFlow experiment.\n",
-    "missing_evidence":  "> ⚠️ Not available in the MLFlow experiment data: {missing}.\n",
-    "data_insufficient": "> ⚠️ The available MLFlow experiment data provided by CRAG pipeline is not sufficient to answer this query: {missing}.\n",
+    "supported":         "> ✅ Passes all criteria: the answer is complete, consistent, and traceable to the MLflow experiment.\n",
+    "missing_evidence":  "> ⚠️ Not available in the MLflow experiment data: {missing}.\n",
+    "data_insufficient": "> ⚠️ The available MLLflow experiment data provided by CRAG pipeline is not sufficient to answer this query: {missing}.\n",
     "inconsistent":      "> ⚠️ This response failed consistency review or could not be corrected within the retry limit.\n",
-    "unsupported":       "> ⚠️ This response failed MLFlow experiment review or could not be corrected within the retry limit.\n",
+    "unsupported":       "> ⚠️ This response failed MLflow experiment review or could not be corrected within the retry limit.\n",
     "unresponsive":      "> ⚠️ No responsive answer could be generated for this query.\n",
 }
  
 VERDICT_DESCRIPTIONS = [
-    ("Supported",         "every value verified against the MLFlow experiment"),
+    ("Supported",         "every value verified against the MLflow experiment"),
     ("Incomplete",  "the asked-for information is absent, omitted, or never recorded"),
-    ("Insufficient data", "the available MLFlow experiment data provided by CRAG pipeline is not sufficient to answer the query"),
-    ("Inconsistency",      "response contradicts the MLFlow experiment"),
-    ("Failed",       "response contains values absent from the MLFlow experiment"),
+    ("Insufficient data", "the available MLflow experiment data provided by CRAG pipeline is not sufficient to answer the query"),
+    ("Inconsistency",      "response contradicts the MLflow experiment"),
+    ("Failed",       "response contains values absent from the MLflow experiment"),
     ("Unresponsive",      "response does not address the query"),
 ]
  
 MD_TEMPLATE = """# Experiment documentation — experiment {experiment_id}
  
 **Verdict:** {badge}
-*Generated {timestamp} · MLFlow Corrective RAG (CRAG) pipeline {version}*
+*Generated {timestamp} · MLflow Corrective RAG (CRAG) pipeline {version}*
  
 ## Query
  
@@ -259,9 +259,9 @@ MD_TEMPLATE = """# Experiment documentation — experiment {experiment_id}
 {legend}
  
 ---
-All run identifiers are traceable to the MLFlow tracking server.
+All run identifiers are traceable to the MLflow tracking server.
 A **SUPPORTED** verdict additionally certifies that every value in the response was verified
-against the experiment MLFlow experiment.
+against the experiment MLflow experiment.
 """
  
 RUN_CARD_MD = """### {run_name} — `{status}` · lifecycle: `{lifecycle_stage}`
