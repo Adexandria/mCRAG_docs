@@ -127,3 +127,76 @@ query → retrieve → grade structure → aggregate → generate → judge
 Documentation is rendered from a template into HTML, Markdown, or PDF, including the query, the judged response, and run information cards traceable to MLflow run IDs.
 
 
+## Using the GitHub Action Workflow
+
+This action automates the Corrective RAG (Retrieval-Augmented Generation) pipeline for MLFlow experiment documentation. The workflow is triggered manually to accept a user-provided query and experiment ID.
+
+The pipeline consists of three main stages:
+
+1. **Generate test data (optional)**: Populates an MLFlow experiment with reproducible sample runs. This step creates 22 synthetic runs if enabled, useful for demonstration purposes.
+
+2. **Data ingestion**: Ingests experiment runs into a Chroma vector store and builds a searchable vocabulary from the run artifacts. This vocabulary enables semantic retrieval during documentation generation.
+
+3. **Generate documentation**: Executes a corrective retrieval workflow to extract relevant experiment information and compile it into structured documentation in your chosen format (HTML, PDF, or Markdown).
+
+### Usage
+
+Full input options are documented in [action.yml](action.yml).
+
+**Local MLFlow server with test data**:
+```yaml
+steps:
+  - uses: ./
+    with: 
+      query: ${{ github.event.inputs.query }}
+      experiment-id: ${{ github.event.inputs.experiment_id }}
+      start-mlflow-server: true
+      skip-testcases: false
+      anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+**Remote MLFlow server with test data**:
+```yaml
+steps:
+  - uses: ./
+    with: 
+      query: ${{ github.event.inputs.query }}
+      experiment-id: ${{ github.event.inputs.experiment_id }}     
+      mlflow-tracking-uri: ${{ vars.MLFLOW_TRACKING_URI }}     
+      skip-testcases: false
+      anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+**Basic (existing experiments only)**:
+```yaml
+steps:
+  - uses: ./
+    with: 
+      query: ${{ github.event.inputs.query }}
+      experiment-id: ${{ github.event.inputs.experiment_id }}     
+      mlflow-tracking-uri: ${{ vars.MLFLOW_TRACKING_URI }}     
+      anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+**Specify output format**:
+Default is HTML. Set `output-format` to `pdf` or `markdown`:
+```yaml
+- uses: ./
+  with: 
+    query: ${{ github.event.inputs.query }}
+    experiment-id: ${{ github.event.inputs.experiment_id }}     
+    mlflow-tracking-uri: ${{ vars.MLFLOW_TRACKING_URI }}     
+    anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    output-format: pdf
+```
+
+## Inputs Reference Table
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `experiment-id` | Yes | — | MLFlow experiment ID |
+| `query` | Yes | — | Documentation query/focus |
+| `mlflow-tracking-uri` | No | `http://127.0.0.1:5000` | MLFlow server endpoint |
+| `start-mlflow-server` | No | `false` | Start local server if unreachable |
+| `skip-testcases` | No | `true` | Skip synthetic data generation |
+| `anthropic-api-key` | Yes | — | Anthropic API key |
+| `output-format` | No | `html` | Output format: `html`, `markdown`, `pdf` |
