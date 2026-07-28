@@ -17,7 +17,7 @@ inputs:
   start-mlflow-server:
     description: "Whether to start the MLFlow server if it's not running. Defaults to true."
     required: false
-    default: "true"
+    default: "false"
     
   experiment-id:
     description: "The ID of the MLFlow experiment to extract runs from."
