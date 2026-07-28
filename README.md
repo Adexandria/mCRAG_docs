@@ -139,6 +139,18 @@ The pipeline consists of three main stages:
 
 3. **Generate documentation**: Executes a corrective retrieval workflow to extract relevant experiment information and compile it into structured documentation in your chosen format (HTML, PDF, or Markdown).
 
+
+## Inputs Reference Table
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `experiment-id` | Yes | — | MLFlow experiment ID |
+| `query` | Yes | — | Documentation query/focus |
+| `mlflow-tracking-uri` | No | `http://127.0.0.1:5000` | MLFlow server endpoint |
+| `start-mlflow-server` | No | `false` | Start local server if unreachable |
+| `skip-testcases` | No | `true` | Skip synthetic data generation |
+| `anthropic-api-key` | Yes | — | Anthropic API key |
+| `output-format` | No | `html` | Output format: `html`, `markdown`, `pdf` |
+
 ### Usage
 
 Full input options are documented in [action.yml](action.yml).
@@ -189,14 +201,3 @@ Default is HTML. Set `output-format` to `pdf` or `markdown`:
     anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
     output-format: pdf
 ```
-
-## Inputs Reference Table
-| Input | Required | Default | Description |
-|-------|----------|---------|-------------|
-| `experiment-id` | Yes | — | MLFlow experiment ID |
-| `query` | Yes | — | Documentation query/focus |
-| `mlflow-tracking-uri` | No | `http://127.0.0.1:5000` | MLFlow server endpoint |
-| `start-mlflow-server` | No | `false` | Start local server if unreachable |
-| `skip-testcases` | No | `true` | Skip synthetic data generation |
-| `anthropic-api-key` | Yes | — | Anthropic API key |
-| `output-format` | No | `html` | Output format: `html`, `markdown`, `pdf` |
