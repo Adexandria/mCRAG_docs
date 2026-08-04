@@ -77,7 +77,7 @@ runs:
     - name: Wait for MLflow server to be reachable
       shell: bash
       run: |
-        code=$(curl -s -o /dev/null -w '%{http_code}' "${{ inputs.mlflow-tracking-uri }}")
+        code=$(curl -s -o /dev/null -L -w '%{http_code}' "${{ inputs.mlflow-tracking-uri }}")
         echo "Got status code: $code"
         if [[ "$code" != "200" ]]; then
           echo "MLflow server at ${{ inputs.mlflow-tracking-uri }} is not reachable (status $code)." >&2
