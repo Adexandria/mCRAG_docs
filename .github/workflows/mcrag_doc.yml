@@ -9,6 +9,10 @@ on:
       experiment_id:
         description: "MLFlow experiment ID"
         required: true
+      mlflow-tracking-server:
+        description: "The hosted URL of the MLflow server"
+        required: false
+        default: "http://127.0.0.1:5000"
   
 jobs:
   generate_docs:
@@ -19,7 +23,7 @@ jobs:
         with: 
            query: ${{ github.event.inputs.query }}
            experiment-id: ${{ github.event.inputs.experiment_id }}
-           start-mlflow-server: true
-           skip-testcases: false
+           start-mlflow-server: $${{ github.event.inputs.mlflow-tracking-server == 'http://127.0.0.1:5000' }}
+           mlflow-tracking-uri: $${{ github.event.inputs.mlflow-tracking-server }}
            anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
         
