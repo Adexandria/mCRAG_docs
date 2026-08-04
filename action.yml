@@ -79,7 +79,7 @@ runs:
       run: |
         echo "Checking MLflow server at ${{ inputs.mlflow-tracking-uri }} ..."
         for i in $(seq 1 30); do
-          code=$(curl -s -o /dev/null -w '%{http_code}' "${{ inputs.mlflow-tracking-uri }}/health" || echo "000")
+          code=$(curl -s -o /dev/null -w '%{http_code}' "${{ inputs.mlflow-tracking-uri }}" || echo "000")
           if [[ "$code" == "200" ]]; then
             echo "MLflow server is healthy."
             exit 0
