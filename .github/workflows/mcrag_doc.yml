@@ -23,7 +23,7 @@ jobs:
         with: 
            query: ${{ github.event.inputs.query }}
            experiment-id: ${{ github.event.inputs.experiment_id }}
-           start-mlflow-server: $${{ github.event.inputs.mlflow-tracking-server == 'http://127.0.0.1:5000' }}
-           mlflow-tracking-uri: $${{ github.event.inputs.mlflow-tracking-server }}
+           start-mlflow-server: ${{ github.event.inputs.mlflow-tracking-server == 'http://127.0.0.1:5000' }}
+           mlflow-tracking-uri: ${{ github.event.inputs.mlflow-tracking-server }}
            anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
         
