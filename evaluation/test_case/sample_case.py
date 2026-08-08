@@ -1,6 +1,6 @@
 import os
 import argparse
-
+import dagshub
 import requests
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score
@@ -10,7 +10,9 @@ from sklearn.ensemble import RandomForestClassifier
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from app.retriever.extract_data import get_all_runs_by_experiment_id, get_experiment_by_id, unwrap_run_data
+from dotenv import load_dotenv
 
+load_dotenv()
 
 tracking_uri = os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000")
 
@@ -162,7 +164,9 @@ def main():
     parser = argparse.ArgumentParser(description="Train sample models and log them to MLflow.")
     parser.add_argument("--experiment-name", default="titanic-demo")
     args = parser.parse_args()
-    
+
+    dagshub.init(repo_owner='Adexandria', repo_name='fraud_detector', mlflow=True)
+
     mlflow.set_tracking_uri(tracking_uri)
 
     experiment_name = args.experiment_name
