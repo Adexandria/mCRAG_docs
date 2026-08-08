@@ -80,7 +80,7 @@ def set_best_model_tag(experiment_name: str):
 
     set_model_tag(best_run_id)
 
-    return best_run_id, best_run["info"]["run_name"].replace("-", "_")
+    return best_run_id, best_run["info"]["run_name"].replace("-", "_"), experiment_id
 
 def set_model_tag(best_run_id: str):
     """
@@ -196,7 +196,7 @@ def main():
 
     print(f"Setting the 'best_model' tag for the run with the highest test accuracy in experiment '{experiment_name}'...")
 
-    best_run_id, best_run_name = set_best_model_tag(experiment_name)
+    best_run_id, best_run_name, experiment_id = set_best_model_tag(experiment_name)
 
     if best_run_id:
         print(f"'best_model' tag set successfully for the best run in experiment '{experiment_name}'.")
@@ -204,6 +204,13 @@ def main():
 
 
     print(f"\nDone. {len(runs)} runs logged to experiment '{experiment_name}'.")
+
+    print(f'experiment_id: {experiment_id}')
+
+    github_output_path = os.getenv("GITHUB_OUTPUT")
+    if github_output_path:
+        with open(github_output_path, "a") as output_file:
+            output_file.write(f"experiment_id={experiment_id}\n")
  
  
 if __name__ == "__main__":
