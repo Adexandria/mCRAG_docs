@@ -206,6 +206,10 @@ RUN_CARD = """<div class="run">
       <div class="ptitle">Model</div>
       <table>{model_rows}</table>
     </div>
+    <div class="panel">
+      <div class="ptitle">Tags <span class="anchor"></span></div>
+      <table>{tags_rows}</table>
+    </div>
   </div>
 </div>"""
 
@@ -287,4 +291,9 @@ RUN_CARD_MD = """### {run_name} — `{status}` · lifecycle: `{lifecycle_stage}`
 **Model**
  
 {model_rows}
+
+**Tags**
+
+{tags_rows}
+
 """
