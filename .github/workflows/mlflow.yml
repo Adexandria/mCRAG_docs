@@ -24,6 +24,7 @@ jobs:
           python evaluation/test_case/sample_case.py --experiment-name "MLFlow_Test_Experiment"
         env:
           MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+          PYTHONPATH: ${{ github.workspace }}
       - name: Extract query
         id: query
         run: echo "value=$(cat instruction.txt)" >> $GITHUB_OUTPUT
