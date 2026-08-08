@@ -1,0 +1,210 @@
+import os
+import argparse
+
+import requests
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score
+from sklearn.model_selection import train_test_split
+import mlflow
+from sklearn.ensemble import RandomForestClassifier
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from app.retriever.extract_data import get_all_runs_by_experiment_id, get_experiment_by_id, unwrap_run_data
+
+
+tracking_uri = os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000")
+
+timeout_s = int(os.environ.get("TIMEOUT_SECONDS", 30))
+
+DATASET_URL = "https://raw.githubusercontent.com/mwaskom/seaborn-data/master/titanic.csv"
+DATASET_NAME = "titanic_dataset"
+
+def load_data():
+    """Read straight from the URL — nothing touches local disk as a file."""
+    df = pd.read_csv(DATASET_URL)
+ 
+    # minimal, deterministic cleanup: keep numeric-friendly columns, drop rows
+    # with missing target/features rather than imputing (keeps this simple)
+    df = df[["survived", "pclass", "sex", "age", "fare", "sibsp", "parch"]].dropna()
+    df["sex"] = df["sex"].map({"male": 0, "female": 1})
+ 
+    X = df.drop(columns=["survived"])
+    y = df["survived"]
+    return train_test_split(X, y, test_size=0.2, random_state=42), df
+ 
+ 
+def log_run(name: str, model, params: dict, X_train, X_test, y_train, y_test, df):
+    """Train one model, log params/metrics/model/dataset to MLflow."""
+    with mlflow.start_run(run_name=name):
+        model.fit(X_train, y_train)
+ 
+        train_preds = model.predict(X_train)
+        test_preds = model.predict(X_test)
+ 
+        mlflow.log_params(params)
+ 
+        mlflow.log_metric("train_accuracy", accuracy_score(y_train, train_preds))
+        mlflow.log_metric("test_accuracy", accuracy_score(y_test, test_preds))
+        mlflow.log_metric("precision", precision_score(y_test, test_preds))
+        mlflow.log_metric("recall", recall_score(y_test, test_preds))
+        mlflow.log_metric("f1_score", f1_score(y_test, test_preds))
+ 
+        dataset = mlflow.data.from_pandas(df, source=DATASET_URL, name=DATASET_NAME)
+        mlflow.log_input(dataset, context="training")
+ 
+        mlflow.sklearn.log_model(sk_model=model, name=name.replace("-", "_"))
+ 
+        run = mlflow.active_run()
+        print(f"[{name}] run_id={run.info.run_id} "
+              f"test_accuracy={accuracy_score(y_test, test_preds):.4f}")
+        
+
+def set_best_model_tag(experiment_name: str):
+    
+    experiment_id = get_experiment_by_id(experiment_name)
+
+    runs = get_all_runs_by_experiment_id(experiment_id)
+
+    unwrapped_runs = [unwrap_run_data(run) for run in runs]
+
+    best_run = max(unwrapped_runs, key=lambda run: run["data"]["metrics"].get("test_accuracy", 0))
+
+    best_run_id = best_run["info"]["run_id"]
+
+    remove_runs = [run for run in unwrapped_runs if run["info"]["run_id"] != best_run_id and "best_model" in run["data"]["tags"] and run["data"]["tags"]["best_model"] == "true"]
+
+    # Remove the "best_model" tag from other runs
+    for run in remove_runs:
+        run_id = run["info"]["run_id"]
+        delete_model_tag(run_id)
+
+    set_model_tag(best_run_id)
+
+    return best_run_id, best_run["info"]["run_name"].replace("-", "_")
+
+def set_model_tag(best_run_id: str):
+    """
+    Set the "best_model" tag for the run with the highest test accuracy in the given experiment.
+    """
+    request = f"{tracking_uri}/api/2.0/mlflow/runs/set-tag"
+    payload = {
+        "run_id": best_run_id,
+        "key": "best_model",
+        "value": "true"
+    }
+
+    response = requests.post(request, json=payload, timeout=timeout_s)
+
+    if response.status_code != 200:
+        raise Exception(f"Failed to set best_model tag: HTTP {response.status_code} — {response.text[:500]}")
+
+
+def delete_model_tag(run_id: str):
+    """
+    Delete the "best_model" tag from the specified run.
+    """
+    request = f"{tracking_uri}/api/2.0/mlflow/runs/delete-tag"
+    payload = {
+        "run_id": run_id,
+        "key": "best_model"
+    }
+
+    response = requests.post(request, json=payload, timeout=timeout_s)
+
+    if response.status_code != 200:
+        raise Exception(f"Failed to delete best_model tag: HTTP {response.status_code} — {response.text[:500]}")
+
+def ensure_registered_model_exists(registered_model_name: str) -> None:
+    """Create the registered-model 'folder' if it doesn't exist yet.
+    Safe to call every time — treats 'already exists' as success."""
+
+    resp = requests.post(
+        f"{tracking_uri}/api/2.0/mlflow/registered-models/create",
+        json={"name": registered_model_name},
+        timeout=timeout_s,
+    )
+    if resp.status_code == 200:
+        return
+    
+    body = resp.json() if resp.content else {}
+    if body.get("error_code") == "RESOURCE_ALREADY_EXISTS":
+        return
+    
+    resp.raise_for_status()   # any other failure should still raise
+
+
+def register_model_version(run_id: str, model_artifact_name: str,
+                           registered_model_name: str) -> str:
+    """
+    Register the model logged under `model_artifact_name` in this run
+    as a new version of `registered_model_name`. Returns the new version number.
+    """
+    ensure_registered_model_exists(registered_model_name)
+
+    resp = requests.post(
+        f"{tracking_uri}/api/2.0/mlflow/model-versions/create",
+        json={
+            "name": registered_model_name,
+            "source": f"runs:/{run_id}/{model_artifact_name}",
+            "run_id": run_id,
+        },
+        timeout=timeout_s,
+    )
+    resp.raise_for_status()
+
+    version = resp.json()["model_version"]["version"]
+
+    print(f"[register_model_version] {registered_model_name} v{version} "
+          f"<- run {run_id}")
+    
+ 
+def main():
+    parser = argparse.ArgumentParser(description="Train sample models and log them to MLflow.")
+    parser.add_argument("--experiment-name", default="titanic-demo")
+    args = parser.parse_args()
+    
+    mlflow.set_tracking_uri(tracking_uri)
+
+    experiment_name = args.experiment_name
+
+    mlflow.set_experiment(experiment_name)
+ 
+    (X_train, X_test, y_train, y_test), df = load_data()
+ 
+    # Logistic regression benefits from scaled features; tree models don't need it.
+    scaler = StandardScaler()
+
+    X_train_scaled = scaler.fit_transform(X_train)
+
+    X_test_scaled = scaler.transform(X_test)
+ 
+    runs = [
+        ("logistic-regression", LogisticRegression(max_iter=200, random_state=42),
+         {"max_iter": 200, "random_state": 42}, X_train_scaled, X_test_scaled),
+ 
+        ("random-forest-shallow", RandomForestClassifier(n_estimators=100, max_depth=3, random_state=42),
+         {"n_estimators": 100, "max_depth": 3, "random_state": 42}, X_train, X_test),
+ 
+        ("random-forest-deep", RandomForestClassifier(n_estimators=200, max_depth=10, random_state=42),
+         {"n_estimators": 200, "max_depth": 10, "random_state": 42}, X_train, X_test),
+    ]
+
+    for name, model, params, X_tr, X_te in runs:
+        log_run(name, model, params, X_tr, X_te, y_train, y_test, df)
+
+    print(f"\nAll runs logged to experiment '{experiment_name}'.")
+
+    print(f"Setting the 'best_model' tag for the run with the highest test accuracy in experiment '{experiment_name}'...")
+
+    best_run_id, best_run_name = set_best_model_tag(experiment_name)
+
+    if best_run_id:
+        print(f"'best_model' tag set successfully for the best run in experiment '{experiment_name}'.")
+        register_model_version(run_id=best_run_id, model_artifact_name=best_run_name, registered_model_name="titanic_model")
+
+
+    print(f"\nDone. {len(runs)} runs logged to experiment '{experiment_name}'.")
+ 
+ 
+if __name__ == "__main__":
+    main()
