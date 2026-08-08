@@ -1,0 +1,37 @@
+name: Run MLFlow Evaluation Test Case
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  run_test_case:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install mlflow scikit-learn pandas numpy
+      - name: Run MLFlow Evaluation Test Case
+        id: experiment_id
+        run: |
+          python evaluation/test_case/sample_case.py --experiment-name "MLFlow_Test_Experiment"
+        env:
+          MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+      - name: Extract query
+        id: query
+        run: echo "value=$(cat instruction.txt)" >> $GITHUB_OUTPUT
+      - uses: ./
+        with: 
+           query: ${{ steps.query.outputs.value }}
+           experiment-id:   ${{ steps.experiment_id.outputs.experiment_id }}
+           start-mlflow-server: ${{ vars.MLFLOW_TRACKING_URI == 'http://127.0.0.1:5000' }}
+           mlflow-tracking-uri: ${{ vars.MLFLOW_TRACKING_URI }}
+           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+        
