@@ -87,12 +87,20 @@ else
 fi
 
 if [[ "${USE_BASE_RETRIEVER}" == true ]]; then
+  echo ""
+  echo "============================================================"
+  echo "Using base retriever for the final stage"
+  echo "============================================================"
   run_stage "3/3 base workflow" "$BASE_MODULE" \
     --query "$QUERY" \
     --experiment-id "$EXPERIMENT_ID" \
     --mimetype "$MIMETYPE"\
     --media-path "$MEDIA_PATH"
 else
+  echo ""
+  echo "============================================================"
+  echo "Using corrective retriever for the final stage"
+  echo "============================================================"
   run_stage "3/3 corrective workflow" "$CORRECTIVE_MODULE" \
     --query "$QUERY" \
     --experiment-id "$EXPERIMENT_ID" \
@@ -104,6 +112,6 @@ PIPELINE_END=$(date +%s)
 echo "OUTPUT_PATH=${MEDIA_PATH}"
 echo ""
 echo "============================================================"
-echo "Pipeline completed successfully in $((PIPELINE_END - PIPELINE_START))s"
+echo "Pipeline completed successfully in RUNTIME=$((PIPELINE_END - PIPELINE_START))s"
 echo "============================================================"
  

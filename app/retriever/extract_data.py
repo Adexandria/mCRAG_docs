@@ -17,6 +17,7 @@ PAGE_SIZE = int(os.environ.get("PAGE_SIZE", 100))
 TIMEOUT_S = int(os.environ.get("TIMEOUT_SECONDS", 30))
 
 
+### Fetch paginated runs by experiment id
 def fetch_paginated_runs_by_experiment_id(experiment_id):
     """
     Fetches paginated runs for a given experiment ID from the MLflow tracking server.
@@ -44,7 +45,7 @@ def fetch_paginated_runs_by_experiment_id(experiment_id):
         if not page_token:
             return
 
-
+## Fetch all runs by experiment id (unpaginated)
 def fetch_all_runs_by_experiment_id(experiment_id):
     """
     Fetches all runs by experiment ID (unpaginated).
@@ -62,8 +63,9 @@ def fetch_all_runs_by_experiment_id(experiment_id):
         raise Exception(f"Error occurred while fetching all runs: {e}")
     
 
+
 # The experiment id is not exposed to the user so this can be use to extract the experiment id from the experiment name. 
-def get_experiment_by_name(experiment_name):
+def get_experiment_by_id(experiment_name):
     """
     Get the experiment by name.
 
@@ -90,7 +92,7 @@ def get_experiment_by_name(experiment_name):
     except Exception as e:
         raise Exception(f"Error occurred while fetching experiment: {e}")
 
-
+### Extract all runs by experiment id
 def get_all_runs_by_experiment_id(experiment_id):
     """
     Get all runs by experiment ID.
@@ -106,6 +108,7 @@ def get_all_runs_by_experiment_id(experiment_id):
         
     except Exception as e:
         raise Exception(f"Error occurred while fetching all runs: {e}")
+
 
 
 ## Extract model data by model id
@@ -124,6 +127,8 @@ def get_model_by_id(model_id):
         return model_data
     except Exception as e:
         raise Exception(f"Error occurred while fetching model: {e}")
+
+
 
 ## Extract run data by run id
 def get_run_by_id(run_id):
@@ -150,9 +155,11 @@ def get_run_by_id(run_id):
     except Exception as e:
         raise Exception(f"Error occurred while fetching run: {e}")
 
+
+
+
 # Extension functions:
 # Unwrap the run data to get the run object, flatten the run data, and extract keywords from the flattened run data.
-
 def unwrap(run):
     """
     Unwrap information to get the run object.
@@ -169,13 +176,16 @@ def unwrap(run):
         
     return run
 
+
 def unwrap_run_data(run_data: dict[str, Any]) -> dict[str, Any]:
     return unwrap(run_data.get("run", run_data))
+
 
 def kv_list(value: list | None) -> dict[str, Any]:
         return (isinstance(value, list) and len(value) > 0
             and all(isinstance(item, dict) and "key" in item  and "value" in item
                     for item in value))
+
 
 def flatten(obj, prefix=None):
     """
@@ -193,6 +203,7 @@ def flatten(obj, prefix=None):
                 yield from flatten(value, f"{prefix}.{i}")
     else:
         yield prefix, obj
+
 
 
 def extract_keywords(run_tuples: list[tuple]) -> dict[str, set[str]]:
@@ -233,7 +244,9 @@ def extract_keywords(run_tuples: list[tuple]) -> dict[str, set[str]]:
             break
  
     return dict(terms)
-    
+
+
+
 def normalize_path(path: str) -> str:
     """
     Format the path to a more readable format by replacing numeric indices with dot notation and applying any alias mappings.

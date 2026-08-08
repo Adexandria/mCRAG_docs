@@ -9,7 +9,7 @@ from app.config import EXTRACT_ROUTING, SECTION_ROUTING, PREFIX_ROUTING
 from app.crag.llm import generate_report, rewrite_query, grade_report
 
 k = int(os.environ.get("RETRIEVAL_K", 4))
-MAX_RETRIES = 2
+MAX_RETRIES = 3
 
 def retrieval(state):
     """
@@ -278,10 +278,10 @@ def decide_after_judging(state):
         return "END"
     
     if proceed == "inconsistent" or proceed == "unresponsive":
-        print("---DECISION: GENERATED ANSWER IS INCONSISTENT OR UNRESPONSIVE, REGENERATE QUERY---")
+        print("---DECISION: GENERATED ANSWER IS INCONSISTENT OR UNRESPONSIVE, REGENERATE RESPONSE---")
         return "generate"
 
-    print("---DECISION: GENERATED ANSWER IS NOT SUFFICIENT, REGENERATE QUERY---")
+    print("---DECISION: GENERATED ANSWER IS NOT SUFFICIENT, REWRITE QUERY---")
     return "transform_query"
 
 
