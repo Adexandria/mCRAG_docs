@@ -25,8 +25,7 @@ jobs:
         env:
           MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
           PYTHONPATH: ${{ github.workspace }}
-          MLFLOW_TRACKING_USERNAME: ${{ vars.MLFLOW_TRACKING_USERNAME }}
-          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+          DAGSHUB_USER_TOKEN: ${{ secrets.DAGSHUB_USER_TOKEN }}
       - name: Extract query
         id: query
         run: echo "value=$(cat instruction.txt)" >> $GITHUB_OUTPUT
