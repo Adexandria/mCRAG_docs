@@ -11,6 +11,7 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from app.retriever.extract_data import get_all_runs_by_experiment_id, get_experiment_by_id, unwrap_run_data
 from dotenv import load_dotenv
+from mlflow.tracking import MlflowClient
 
 load_dotenv()
 
@@ -88,51 +89,30 @@ def set_model_tag(best_run_id: str):
     """
     Set the "best_model" tag for the run with the highest test accuracy in the given experiment.
     """
-    request = f"{tracking_uri}/api/2.0/mlflow/runs/set-tag"
-    payload = {
-        "run_id": best_run_id,
-        "key": "best_model",
-        "value": "true"
-    }
-
-    response = requests.post(request, json=payload, timeout=timeout_s)
-
-    if response.status_code != 200:
-        raise Exception(f"Failed to set best_model tag: HTTP {response.status_code} — {response.text[:500]}")
+    client = MlflowClient(tracking_uri=tracking_uri)
+    client.set_tag(best_run_id, "best_model", "true")
 
 
 def delete_model_tag(run_id: str):
     """
     Delete the "best_model" tag from the specified run.
     """
-    request = f"{tracking_uri}/api/2.0/mlflow/runs/delete-tag"
-    payload = {
-        "run_id": run_id,
-        "key": "best_model"
-    }
-
-    response = requests.post(request, json=payload, timeout=timeout_s)
-
-    if response.status_code != 200:
-        raise Exception(f"Failed to delete best_model tag: HTTP {response.status_code} — {response.text[:500]}")
+    client = MlflowClient(tracking_uri=tracking_uri)
+    client.delete_tag(run_id, "best_model")
 
 def ensure_registered_model_exists(registered_model_name: str) -> None:
     """Create the registered-model 'folder' if it doesn't exist yet.
     Safe to call every time — treats 'already exists' as success."""
 
-    resp = requests.post(
-        f"{tracking_uri}/api/2.0/mlflow/registered-models/create",
-        json={"name": registered_model_name},
-        timeout=timeout_s,
-    )
-    if resp.status_code == 200:
-        return
-    
-    body = resp.json() if resp.content else {}
-    if body.get("error_code") == "RESOURCE_ALREADY_EXISTS":
-        return
-    
-    resp.raise_for_status()   # any other failure should still raise
+    client = MlflowClient(tracking_uri=tracking_uri)
+    try:
+        client.create_registered_model(registered_model_name)
+        print(f"[ensure_registered_model_exists] Created registered model '{registered_model_name}'")
+    except mlflow.exceptions.RestException as e:
+        if "RESOURCE_ALREADY_EXISTS" in str(e):
+            print(f"[ensure_registered_model_exists] Registered model '{registered_model_name}' already exists")
+        else:
+            raise
 
 
 def register_model_version(run_id: str, model_artifact_name: str,
@@ -143,23 +123,13 @@ def register_model_version(run_id: str, model_artifact_name: str,
     """
     ensure_registered_model_exists(registered_model_name)
 
-    resp = requests.post(
-        f"{tracking_uri}/api/2.0/mlflow/model-versions/create",
-        json={
-            "name": registered_model_name,
-            "source": f"runs:/{run_id}/{model_artifact_name}",
-            "run_id": run_id,
-        },
-        timeout=timeout_s,
-    )
-    resp.raise_for_status()
-
-    version = resp.json()["model_version"]["version"]
-
+    client = MlflowClient(tracking_uri=tracking_uri)
+    model_uri = f"runs:/{run_id}/{model_artifact_name}"
+    version = client.create_model_version(name=registered_model_name, source=model_uri, run_id=run_id)
     print(f"[register_model_version] {registered_model_name} v{version} "
           f"<- run {run_id}")
     
- 
+
 def main():
     parser = argparse.ArgumentParser(description="Train sample models and log them to MLflow.")
     parser.add_argument("--experiment-name", default="titanic-demo")
