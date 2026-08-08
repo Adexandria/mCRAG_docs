@@ -207,7 +207,7 @@ RUN_CARD = """<div class="run">
       <table>{model_rows}</table>
     </div>
     <div class="panel">
-      <div class="ptitle">Tags <span class="anchor"></span></div>
+      <div class="ptitle">Tags</span></div>
       <table>{tags_rows}</table>
     </div>
   </div>

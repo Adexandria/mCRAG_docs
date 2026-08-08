@@ -225,6 +225,10 @@ def _extract_run_info(run: dict, mimeType: str) -> str:
 
     run_id = str(info.get("run_id") or info.get("run_uuid") or "0")
 
+    tags = _kv(data.get("tags"))
+
+    current_tags = {k: v for k, v in tags.items() if not k.startswith("mlflow")}
+
      
     dataset = {
         "Name":        ds.get("name", ""),
@@ -247,7 +251,7 @@ def _extract_run_info(run: dict, mimeType: str) -> str:
             params_rows=_md_rows(params),
             model_rows=_md_model_blocks(run),
             dataset_rows=_md_rows(dataset),
-            tags_rows=_md_rows(_kv(data.get("tags"))),
+            tags_rows=_md_rows(current_tags),
         )
     else:
         return RUN_CARD.format(
@@ -263,7 +267,7 @@ def _extract_run_info(run: dict, mimeType: str) -> str:
         params_rows=_rows(params),
         model_rows=_model_blocks(run),
         dataset_rows=_rows(dataset, mono_keys=("digest",)),
-        tags_rows=_rows(_kv(data.get("tags"))),
+        tags_rows=_rows(current_tags),
     )
 
 
