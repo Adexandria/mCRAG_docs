@@ -68,6 +68,8 @@ def set_best_model_tag(experiment_name: str):
 
     runs = get_all_runs_by_experiment_id(experiment_id)
 
+    print(runs[0])
+
     unwrapped_runs = [unwrap_run_data(run) for run in runs]
 
     best_run = max(unwrapped_runs, key=lambda run: run["data"]["metrics"].get("test_accuracy", 0))
@@ -83,7 +85,9 @@ def set_best_model_tag(experiment_name: str):
 
     set_model_tag(best_run_id)
 
-    return best_run_id, best_run["info"]["run_name"].replace("-", "_"), experiment_id
+    run_name = best_run["info"]["run_name"]
+
+    return best_run_id, run_name, experiment_id
 
 def set_model_tag(best_run_id: str):
     """
@@ -99,35 +103,6 @@ def delete_model_tag(run_id: str):
     """
     client = MlflowClient(tracking_uri=tracking_uri)
     client.delete_tag(run_id, "best_model")
-
-def ensure_registered_model_exists(registered_model_name: str) -> None:
-    """Create the registered-model 'folder' if it doesn't exist yet.
-    Safe to call every time — treats 'already exists' as success."""
-
-    client = MlflowClient(tracking_uri=tracking_uri)
-    try:
-        client.create_registered_model(registered_model_name)
-        print(f"[ensure_registered_model_exists] Created registered model '{registered_model_name}'")
-    except mlflow.exceptions.RestException as e:
-        if "RESOURCE_ALREADY_EXISTS" in str(e):
-            print(f"[ensure_registered_model_exists] Registered model '{registered_model_name}' already exists")
-        else:
-            raise
-
-
-def register_model_version(run_id: str, model_artifact_name: str,
-                           registered_model_name: str) -> str:
-    """
-    Register the model logged under `model_artifact_name` in this run
-    as a new version of `registered_model_name`. Returns the new version number.
-    """
-    ensure_registered_model_exists(registered_model_name)
-
-    client = MlflowClient(tracking_uri=tracking_uri)
-    model_uri = f"runs:/{run_id}/{model_artifact_name}"
-    version = client.create_model_version(name=registered_model_name, source=model_uri, run_id=run_id)
-    print(f"[register_model_version] {registered_model_name} v{version} "
-          f"<- run {run_id}")
     
 
 def main():
@@ -170,11 +145,11 @@ def main():
 
     print(f"Setting the 'best_model' tag for the run with the highest test accuracy in experiment '{experiment_name}'...")
 
-    best_run_id, best_run_name, experiment_id = set_best_model_tag(experiment_name)
+    best_run_id, run_name, experiment_id = set_best_model_tag(experiment_name)
 
     if best_run_id:
         print(f"'best_model' tag set successfully for the best run in experiment '{experiment_name}'.")
-        register_model_version(run_id=best_run_id, model_artifact_name=best_run_name, registered_model_name="titanic_model")
+        model_uri = f"runs:/{best_run_id}/{run_name}"
 
 
     print(f"\nDone. {len(runs)} runs logged to experiment '{experiment_name}'.")
