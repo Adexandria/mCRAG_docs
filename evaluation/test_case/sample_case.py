@@ -55,7 +55,7 @@ def log_run(name: str, model, params: dict, X_train, X_test, y_train, y_test, df
         dataset = mlflow.data.from_pandas(df, source=DATASET_URL, name=DATASET_NAME)
         mlflow.log_input(dataset, context="training")
  
-        mlflow.sklearn.log_model(sk_model=model, name=name.replace("-", "_"))
+        mlflow.sklearn.log_model(sk_model=model, name=name.replace("-", "_"), input_example=X_train)
  
         run = mlflow.active_run()
         print(f"[{name}] run_id={run.info.run_id} "
