@@ -21,6 +21,14 @@ jobs:
         with:
          python-version: "3.11"
 
+      - name: Debug - List workspace files
+        run: |
+            echo "Current directory:"
+            pwd
+            ls -la
+            echo "Checking state folder:"
+            ls -la .github/state/ || echo "state folder does not exist"
+
       - name: Read last known run count
         id: last_count
         run: |
