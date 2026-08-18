@@ -127,7 +127,7 @@ runs:
       shell: bash
       run: |
          PYTHON_OUTPUT=$(python evaluation/logger.py --experiment-id "${{ inputs.experiment-id }}" --query "${{ inputs.query }}"  --timestamp "${{ steps.ts.outputs.value }}" --documentation-name "${{ steps.run_pipeline.outputs.output-path }}" --mlflow-tracking-uri "${{ inputs.mlflow-tracking-uri }}")
-         echo "log-name: $PYTHON_OUTPUT" >> "$GITHUB_OUTPUT"
+         echo "log-name=$PYTHON_OUTPUT" >> "$GITHUB_OUTPUT"
 
       env:
             PYTHONPATH: ${{ github.workspace }}
@@ -135,6 +135,6 @@ runs:
     - name: Upload log information as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ steps.log_info.outputs.log-name }}
+        name: mcrag-documentation-log-${{ inputs.experiment-id }}-${{ steps.ts.outputs.value }}
         path: ${{ steps.log_info.outputs.log-name }}
     
