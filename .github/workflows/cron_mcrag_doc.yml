@@ -70,6 +70,7 @@ jobs:
             echo "value=$PYTHON_OUTPUT" >> "$GITHUB_OUTPUT"
         env:
             PYTHONPATH: ${{ github.workspace }}
+            MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
     
       - name: Decide whether to proceed
         id: decision
