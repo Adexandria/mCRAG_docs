@@ -63,6 +63,7 @@ jobs:
         id: current_count
         shell: bash
         run: |
+            pip install requests
             PYTHON_OUTPUT=$(python evaluation/num_run.py --experiment-id "${{ steps.idenftifiers.outputs.experiment_id }}")
 
             echo "value=$PYTHON_OUTPUT" >> "$GITHUB_OUTPUT"
