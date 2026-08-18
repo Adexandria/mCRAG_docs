@@ -66,6 +66,8 @@ jobs:
             PYTHON_OUTPUT=$(python evaluation/num_run.py --experiment-id "${{ steps.idenftifiers.outputs.experiment_id }}")
 
             echo "value=$PYTHON_OUTPUT" >> "$GITHUB_OUTPUT"
+        env:
+            PYTHONPATH: ${{ github.workspace }}
     
       - name: Decide whether to proceed
         id: decision
