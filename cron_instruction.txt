@@ -1,4 +1,4 @@
 {
         "experiment_id" : "2",
-         "query" : "Extract best run with the best metric"
+         "query" : "Extract best run with the best metric" 
 }
