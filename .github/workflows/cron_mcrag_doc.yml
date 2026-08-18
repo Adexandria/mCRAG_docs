@@ -66,6 +66,10 @@ jobs:
         id: current_count
         shell: bash
         run: |
+            pip install requests
+            pip install python-dotenv
+            echo  ${{ vars.MLFLOW_TRACKING_URI }}
+            echo ${{ steps. identifiers.outputs.experiment_id }}
             PYTHON_OUTPUT=$(python evaluation/num_run.py --experiment-id "${{ steps.identifiers.outputs.experiment_id }}")
 
             echo "value=$PYTHON_OUTPUT" >> "$GITHUB_OUTPUT"
