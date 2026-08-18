@@ -121,3 +121,9 @@ runs:
       with:
         name: mcrag-documentation-${{ inputs.experiment-id }}-${{ steps.ts.outputs.value }}
         path: ${{ steps.run_pipeline.outputs.output-path }}
+
+    - name: Log information about the generated documentation
+      id: log_info
+      shell: bash
+      run: |
+         PYTHON_OUTPUT=$(python evaluation/logger.py --experiment-id "${{ inputs.experiment-id }}" --query "${{ inputs.query }}"  --timestamp "${{ steps.ts.outputs.value }}" --documentation-name "${{ steps.run_pipeline.outputs.output-path }}" --mlflow-tracking-uri "${{ inputs.mlflow-tracking-uri }}")

@@ -1,0 +1,92 @@
+name: Generate MLFlow Experiment Documentation using CRON
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" 
+  push:
+    branches:
+        - main
+    paths:
+        - 'cron_instruction.txt'
+
+permissions:
+  contents: write  
+
+jobs:
+  check-and-trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+         python-version: "3.11"
+
+      - name: Read last known run count
+        id: last_count
+        run: |
+          if [[ -f .github/state/last_run_count.txt ]]; then
+            echo "value=$(cat .github/state/last_run_count.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=0" >> "$GITHUB_OUTPUT"
+          fi
+      
+      - name: Extract query and experiment ID
+        id: idenftifiers
+        run: |
+            python3 - << 'EOF'
+            import json
+            import os
+
+            # Read the text file
+            with open("cron_instruction.txt", "r") as f:
+                content = f.read().strip()
+            data = json.loads(content)
+            if isinstance(data, list):
+                item = data[0]
+            else:
+                item = data
+            exp_id = item.get("experiment_id")
+            query = item.get("query")
+
+            # Set the outputs
+            print(f"Loaded Experiment ID: {exp_id}")
+            print(f"Loaded Query: {query}")
+            EOF
+
+            echo "experiment_id=${exp_id}" >> "$GITHUB_OUTPUT"
+            echo "query=${query}" >> "$GITHUB_OUTPUT"
+
+
+      - name: Get current run count
+        id: current_count
+        shell: bash
+        run: |
+            PYTHON_OUTPUT=$(python evaluation/num_run.py --experiment-id "${{ steps.idenftifiers.outputs.experiment_id }}")
+
+            echo "value=$PYTHON_OUTPUT" >> "$GITHUB_OUTPUT"
+    
+      - name: Decide whether to proceed
+        id: decision
+        run: |
+          if [[ "${{ steps.current_count.outputs.value }}" -gt "${{ steps.last_count.outputs.value }}" ]]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "No new runs — skipping."
+          fi
+      - name: Trigger documentation workflow
+        if: steps.decision.outputs.proceed == 'true'
+        uses: ./
+        with: 
+           query: ${{ steps.idenftifiers.outputs.query }}
+           experiment-id:   ${{ steps.idenftifiers.outputs.experiment_id }}
+           start-mlflow-server: ${{ vars.MLFLOW_TRACKING_URI == 'http://127.0.0.1:5000' }}
+           mlflow-tracking-uri: ${{ vars.MLFLOW_TRACKING_URI }}
+           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Update last known run count
+        if: steps.decision.outputs.proceed == 'true'
+        run: |
+            echo "${{ steps.current_count.outputs.value }}" > .github/state/last_run_count.txt
