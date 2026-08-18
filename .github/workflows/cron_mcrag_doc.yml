@@ -1,13 +1,13 @@
 name: Generate MLFlow Experiment Documentation using CRON
 
 on:
- # schedule:
-    #- cron: "* * * * *" 
+  schedule:
+    - cron: "0 */6 * * *" 
   push:
     branches:
         - main
-    #paths:
-        #- 'cron_instruction.txt'
+    paths:
+        - 'cron_instruction.txt'
 
 permissions:
   contents: write  
@@ -33,7 +33,7 @@ jobs:
           fi
       
       - name: Extract query and experiment ID
-        id: identifiers
+        id: idenftifiers
         run: |
             python3 - << 'EOF'
             import json
@@ -53,30 +53,21 @@ jobs:
             # Set the outputs
             print(f"Loaded Experiment ID: {exp_id}")
             print(f"Loaded Query: {query}")
-            github_output = os.environ.get('GITHUB_OUTPUT')
-            if github_output:
-              with open(github_output, 'a') as out_file:
-                out_file.write(f"experiment_id={exp_id}\n")
-                # Using EOF delimiter for the query string just in case it contains spaces/newlines
-                out_file.write("query<<EOF\n")
-                out_file.write(f"{query}\n")
-                out_file.write("EOF\n")
             EOF
+
+            echo "experiment_id=${exp_id}" >> "$GITHUB_OUTPUT"
+            echo "query=${query}" >> "$GITHUB_OUTPUT"
+
 
       - name: Get current run count
         id: current_count
         shell: bash
         run: |
-            pip install requests
-            pip install python-dotenv
-            echo  ${{ vars.MLFLOW_TRACKING_URI }}
-            echo ${{ steps. identifiers.outputs.experiment_id }}
-            PYTHON_OUTPUT=$(python evaluation/num_run.py --experiment-id "${{ steps.identifiers.outputs.experiment_id }}")
+            PYTHON_OUTPUT=$(python evaluation/num_run.py --experiment-id "${{ steps.idenftifiers.outputs.experiment_id }}")
 
             echo "value=$PYTHON_OUTPUT" >> "$GITHUB_OUTPUT"
         env:
             PYTHONPATH: ${{ github.workspace }}
-            MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
     
       - name: Decide whether to proceed
         id: decision
@@ -91,8 +82,8 @@ jobs:
         if: steps.decision.outputs.proceed == 'true'
         uses: ./
         with: 
-           query: ${{ steps. identifiers.outputs.query }}
-           experiment-id:   ${{ steps. identifiers.outputs.experiment_id }}
+           query: ${{ steps.idenftifiers.outputs.query }}
+           experiment-id:   ${{ steps.idenftifiers.outputs.experiment_id }}
            start-mlflow-server: ${{ vars.MLFLOW_TRACKING_URI == 'http://127.0.0.1:5000' }}
            mlflow-tracking-uri: ${{ vars.MLFLOW_TRACKING_URI }}
            anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -100,4 +91,5 @@ jobs:
       - name: Update last known run count
         if: steps.decision.outputs.proceed == 'true'
         run: |
+            mkdir -p .github/state
             echo "${{ steps.current_count.outputs.value }}" > .github/state/last_run_count.txt
