@@ -102,7 +102,7 @@ jobs:
             git config --global user.name "github-actions[bot]"
             git config --global user.email "github-actions[bot]@users.noreply.github.com"
       
-            # Stage, commit, and push the state file back to main
+            
             git add .github/state/last_run_count.txt
             git commit -m "chore: update last run count state [skip ci]" || echo "No changes to commit"
             git push
