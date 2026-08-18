@@ -2,7 +2,7 @@ name: Generate MLFlow Experiment Documentation using CRON
 
 on:
   schedule:
-    - cron: "0 */6 * * *" 
+    - cron: "* * * * *" 
   push:
     branches:
         - main
