@@ -6,8 +6,8 @@ on:
   push:
     branches:
         - main
-    paths:
-        - 'cron_instruction.txt'
+    #paths:
+        #- 'cron_instruction.txt'
 
 permissions:
   contents: write  
